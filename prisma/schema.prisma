@@ -1,0 +1,368 @@
+// Multi-tenant loyalty wallet schema.
+// Every customer-facing record carries a tenantId so the same database
+// can host Chui plus future restaurants with full isolation.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenant = a restaurant (e.g. "Chui"). One tenant has many locations, staff
+// users, customers, cards and gift cards.
+// ---------------------------------------------------------------------------
+model Tenant {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  brandColor  String   @default("#0F1B2D")
+  logoUrl     String?
+  currency    String   @default("USD")
+  // Period over which we evaluate tier qualification (in days). 365 = airline-style annual.
+  tierPeriodDays Int   @default(365)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  locations   Location[]
+  staff       StaffUser[]
+  customers   Customer[]
+  tiers       Tier[]
+  rewards     Reward[]
+  cards       LoyaltyCard[]
+  giftCards   GiftCard[]
+  transactions Transaction[]
+  terminals   Terminal[]
+  campaigns   Campaign[]
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+
+  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  terminals Terminal[]
+  transactions Transaction[]
+
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Staff = restaurant employees / admins. Scoped to a single tenant.
+// ---------------------------------------------------------------------------
+enum StaffRole {
+  OWNER
+  MANAGER
+  CASHIER
+}
+
+model StaffUser {
+  id           String    @id @default(cuid())
+  tenantId     String
+  email        String
+  passwordHash String
+  name         String
+  role         StaffRole @default(CASHIER)
+  createdAt    DateTime  @default(now())
+
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Customer = end user (the diner). Belongs to one tenant. We keep PII minimal.
+// ---------------------------------------------------------------------------
+model Customer {
+  id         String   @id @default(cuid())
+  tenantId   String
+  email      String?
+  phone      String?
+  firstName  String?
+  lastName   String?
+  birthDate  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cards      LoyaltyCard[]
+  giftCards  GiftCard[]
+  transactions Transaction[]
+
+  @@unique([tenantId, email])
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Tier = airline-style level (e.g. Silver / Gold / Platinum).
+// Qualification is by total spend OR points earned in the rolling tier period.
+// `discountPct` is applied automatically at redemption time.
+// ---------------------------------------------------------------------------
+model Tier {
+  id              String  @id @default(cuid())
+  tenantId        String
+  name            String
+  rank            Int     // 1=Silver, 2=Gold, 3=Platinum, ...
+  // Threshold to reach this tier within the tenant's tier period.
+  qualifyPoints   Int     @default(0)
+  qualifySpend    Int     @default(0) // in minor units (cents)
+  // Permanent perk for customers in this tier.
+  discountPct     Int     @default(0) // 0..100
+  pointsMultiplier Float  @default(1.0)
+  color           String  @default("#C0C0C0")
+  createdAt       DateTime @default(now())
+
+  tenant          Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cards           LoyaltyCard[]
+
+  @@unique([tenantId, rank])
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// Reward = catalog of items the customer can redeem with points.
+// ---------------------------------------------------------------------------
+model Reward {
+  id          String  @id @default(cuid())
+  tenantId    String
+  name        String
+  description String?
+  pointsCost  Int
+  // Optional minimum tier rank required to redeem.
+  minTierRank Int     @default(0)
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+}
+
+// ---------------------------------------------------------------------------
+// LoyaltyCard = the customer's persistent membership record.
+// `nfcSerial` is what gets embedded in Apple Wallet / Google Wallet / a physical
+// card and is what the POS scans. It is opaque and stable per card.
+// ---------------------------------------------------------------------------
+enum CardStatus {
+  ACTIVE
+  SUSPENDED
+  CLOSED
+}
+
+model LoyaltyCard {
+  id              String     @id @default(cuid())
+  tenantId        String
+  customerId      String
+  tierId          String
+  nfcSerial       String     @unique // opaque, lives in the wallet pass
+  status          CardStatus @default(ACTIVE)
+  pointsBalance   Int        @default(0)
+  // Rolling totals used by the tier engine. Reset every tierPeriodDays.
+  periodPoints    Int        @default(0)
+  periodSpend     Int        @default(0)
+  periodStartedAt DateTime   @default(now())
+  issuedAt        DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  tenant          Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tier            Tier @relation(fields: [tierId], references: [id])
+  transactions    Transaction[]
+  walletDevices   WalletDevice[]
+  campaignDeliveries CampaignDelivery[]
+
+  @@index([tenantId])
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// WalletDevice = a phone that has installed the loyalty pass and registered
+// with our PassKit web service (Apple) or Google Wallet. We need this so we
+// can push pass updates (lock-screen notifications) to the right devices.
+// ---------------------------------------------------------------------------
+enum WalletPlatform {
+  APPLE
+  GOOGLE
+}
+
+model WalletDevice {
+  id              String         @id @default(cuid())
+  cardId          String
+  platform        WalletPlatform
+  // Apple: deviceLibraryIdentifier from PassKit web service registration.
+  // Google: a stable device id we get from the Wallet API push channel.
+  deviceIdentifier String
+  // Apple: the pushToken Apple sends with the registration call.
+  // Google: not used; updates are pushed by calling the Wallet REST API.
+  pushToken       String?
+  registeredAt    DateTime       @default(now())
+  lastSeenAt      DateTime       @default(now())
+
+  card            LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([platform, deviceIdentifier, cardId])
+  @@index([cardId])
+}
+
+// ---------------------------------------------------------------------------
+// Campaign = a marketing message targeted at one or more tiers. Delivered as
+// a wallet pass update so it surfaces on the lock screen of every cardholder
+// who matches the targeting, with no separate app needed.
+// ---------------------------------------------------------------------------
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+model Campaign {
+  id           String         @id @default(cuid())
+  tenantId     String
+  title        String
+  // Short message shown in the wallet pass back / lock-screen notification.
+  // Both Apple and Google constrain this to a few hundred chars.
+  message      String
+  // Subset of tier ranks that should receive this campaign. Empty array = all.
+  targetTierRanks Int[]       @default([])
+  status       CampaignStatus @default(DRAFT)
+  scheduledFor DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime       @default(now())
+
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries   CampaignDelivery[]
+
+  @@index([tenantId, status])
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model CampaignDelivery {
+  id          String         @id @default(cuid())
+  campaignId  String
+  cardId      String
+  status      DeliveryStatus @default(PENDING)
+  error       String?
+  sentAt      DateTime?
+
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  card        LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, cardId])
+  @@index([campaignId, status])
+}
+
+// ---------------------------------------------------------------------------
+// GiftCard = prepaid balance delivered exclusively as a wallet pass
+// (Apple Wallet / Google Wallet). No physical cards are ever issued.
+// `nfcSerial` is the opaque id embedded in the pass and broadcast over NFC
+// at the till via Apple VAS / Google Smart Tap.
+// ---------------------------------------------------------------------------
+enum GiftCardStatus {
+  ACTIVE
+  REDEEMED
+  EXPIRED
+  CANCELLED
+}
+
+model GiftCard {
+  id              String         @id @default(cuid())
+  tenantId        String
+  // Optional: the recipient. Anonymous gift cards are allowed (customerId null).
+  customerId      String?
+  code            String         @unique // human-readable, e.g. for receipts and online redemption
+  nfcSerial       String         @unique // opaque id embedded in the wallet pass
+  pinHash         String?        // optional verification PIN for online redemption
+  initialAmount   Int            // minor units (cents)
+  balance         Int            // minor units (cents)
+  status          GiftCardStatus @default(ACTIVE)
+  expiresAt       DateTime?
+  issuedAt        DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  tenant          Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  transactions    Transaction[]
+
+  @@index([tenantId])
+  @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// Transaction = ledger of every action that moves points or balance.
+// Append-only: we never UPDATE an existing transaction; reversals are new rows.
+// ---------------------------------------------------------------------------
+enum TransactionKind {
+  EARN              // points credited from a purchase
+  REDEEM_REWARD     // points debited to claim a reward
+  TIER_DISCOUNT     // discount applied at the till (not points)
+  GIFT_LOAD         // money loaded onto a gift card
+  GIFT_REDEEM       // money spent off a gift card
+  ADJUSTMENT        // manual correction by staff
+  REVERSAL          // undo of a previous tx
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  tenantId      String
+  locationId    String?
+  customerId    String?
+  cardId        String?
+  giftCardId    String?
+  kind          TransactionKind
+  // Amounts. Use whichever fields apply to the kind.
+  amountCents   Int             @default(0) // money moved (gift cards, sale total)
+  pointsDelta   Int             @default(0) // +earn / -redeem
+  note          String?
+  // For idempotency on POS retries (terminal sends a UUID).
+  idempotencyKey String?        @unique
+  createdAt     DateTime        @default(now())
+  reversedById  String?         @unique
+  reversedBy    Transaction?    @relation("Reversal", fields: [reversedById], references: [id])
+  reverses      Transaction?    @relation("Reversal")
+
+  tenant        Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location      Location? @relation(fields: [locationId], references: [id])
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  card          LoyaltyCard? @relation(fields: [cardId], references: [id])
+  giftCard      GiftCard? @relation(fields: [giftCardId], references: [id])
+
+  @@index([tenantId, createdAt])
+  @@index([cardId])
+  @@index([giftCardId])
+}
+
+// ---------------------------------------------------------------------------
+// Terminal = a register / NFC reader. Each terminal authenticates with its own
+// API key so a leaked key only compromises one device.
+// ---------------------------------------------------------------------------
+model Terminal {
+  id          String   @id @default(cuid())
+  tenantId    String
+  locationId  String?
+  name        String
+  apiKeyHash  String   @unique
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime?
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location    Location? @relation(fields: [locationId], references: [id])
+
+  @@index([tenantId])
+}

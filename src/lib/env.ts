@@ -1,0 +1,27 @@
+import "dotenv/config";
+import { z } from "zod";
+
+const schema = z.object({
+  PORT: z.coerce.number().default(3000),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  LOG_LEVEL: z.string().default("info"),
+
+  DATABASE_URL: z.string().url(),
+
+  JWT_SECRET: z.string().min(16),
+  JWT_EXPIRES_IN: z.string().default("7d"),
+  NFC_TOKEN_SECRET: z.string().min(16),
+
+  APPLE_PASS_TYPE_IDENTIFIER: z.string().optional(),
+  APPLE_TEAM_IDENTIFIER: z.string().optional(),
+  APPLE_PASS_CERT_PATH: z.string().optional(),
+  APPLE_PASS_KEY_PATH: z.string().optional(),
+  APPLE_PASS_KEY_PASSPHRASE: z.string().optional(),
+  APPLE_WWDR_CERT_PATH: z.string().optional(),
+
+  GOOGLE_WALLET_ISSUER_ID: z.string().optional(),
+  GOOGLE_WALLET_SERVICE_ACCOUNT_PATH: z.string().optional(),
+});
+
+export const env = schema.parse(process.env);
+export type Env = typeof env;

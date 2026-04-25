@@ -1,0 +1,157 @@
+import { prisma } from "../lib/prisma.js";
+import { generateNfcSerial } from "../lib/ids.js";
+import { BadRequest, Conflict, NotFound } from "../lib/errors.js";
+import { evaluateCardTier, pickTier, rollPeriodIfNeeded } from "./tier-engine.js";
+import { enqueuePassUpdate } from "./wallet-push.js";
+
+// Issuing, accruing and redeeming on a customer's loyalty card.
+//
+// Every state-changing operation runs inside a serializable Prisma transaction
+// so concurrent taps from different terminals can never double-credit or
+// double-spend the same card.
+
+export async function issueCard(input: {
+  tenantId: string;
+  customerId: string;
+}) {
+  const tiers = await prisma.tier.findMany({ where: { tenantId: input.tenantId } });
+  if (tiers.length === 0) {
+    throw BadRequest("Tenant has no tiers configured");
+  }
+  const entry = pickTier(tiers, 0, 0);
+
+  const existing = await prisma.loyaltyCard.findFirst({
+    where: { tenantId: input.tenantId, customerId: input.customerId, status: "ACTIVE" },
+  });
+  if (existing) throw Conflict("Customer already has an active card");
+
+  return prisma.loyaltyCard.create({
+    data: {
+      tenantId: input.tenantId,
+      customerId: input.customerId,
+      tierId: entry.id,
+      nfcSerial: generateNfcSerial(),
+    },
+    include: { tier: true, customer: true },
+  });
+}
+
+// Earn points from a sale. `amountCents` is the total spent; the points are
+// derived from the tenant's earn rate (1 point per minor currency unit by
+// default) multiplied by the customer's current tier multiplier.
+export async function accrueFromSale(input: {
+  tenantId: string;
+  cardId: string;
+  amountCents: number;
+  locationId?: string;
+  idempotencyKey?: string;
+  note?: string;
+}) {
+  if (input.amountCents <= 0) throw BadRequest("amountCents must be positive");
+
+  return prisma.$transaction(async (tx) => {
+    if (input.idempotencyKey) {
+      const dup = await tx.transaction.findUnique({
+        where: { idempotencyKey: input.idempotencyKey },
+      });
+      if (dup) return dup;
+    }
+
+    await rollPeriodIfNeeded(tx, input.cardId);
+
+    const card = await tx.loyaltyCard.findUniqueOrThrow({
+      where: { id: input.cardId },
+      include: { tier: true },
+    });
+    if (card.tenantId !== input.tenantId) throw NotFound("Card not in tenant");
+    if (card.status !== "ACTIVE") throw BadRequest("Card is not active");
+
+    // 1 point per dollar (i.e. per 100 cents) by default, multiplied by tier.
+    const baseUnits = Math.floor(input.amountCents / 100);
+    const earned = Math.floor(baseUnits * card.tier.pointsMultiplier);
+
+    await tx.loyaltyCard.update({
+      where: { id: card.id },
+      data: {
+        pointsBalance: { increment: earned },
+        periodPoints: { increment: earned },
+        periodSpend: { increment: input.amountCents },
+      },
+    });
+
+    const txRow = await tx.transaction.create({
+      data: {
+        tenantId: input.tenantId,
+        locationId: input.locationId,
+        customerId: card.customerId,
+        cardId: card.id,
+        kind: "EARN",
+        amountCents: input.amountCents,
+        pointsDelta: earned,
+        note: input.note,
+        idempotencyKey: input.idempotencyKey,
+      },
+    });
+
+    const evaluation = await evaluateCardTier(tx, card.id);
+    if (evaluation.upgraded) {
+      // Make the new tier visible on the customer's phone immediately.
+      await enqueuePassUpdate(tx, card.id, {
+        reason: "tier_upgraded",
+        message: `¡Bienvenido a ${evaluation.newTier.name}!`,
+      });
+    } else {
+      await enqueuePassUpdate(tx, card.id, { reason: "balance_changed" });
+    }
+
+    return txRow;
+  });
+}
+
+export async function redeemReward(input: {
+  tenantId: string;
+  cardId: string;
+  rewardId: string;
+  locationId?: string;
+  idempotencyKey?: string;
+}) {
+  return prisma.$transaction(async (tx) => {
+    const card = await tx.loyaltyCard.findUniqueOrThrow({
+      where: { id: input.cardId },
+      include: { tier: true },
+    });
+    if (card.tenantId !== input.tenantId) throw NotFound("Card not in tenant");
+    if (card.status !== "ACTIVE") throw BadRequest("Card is not active");
+
+    const reward = await tx.reward.findUniqueOrThrow({ where: { id: input.rewardId } });
+    if (reward.tenantId !== input.tenantId) throw NotFound("Reward not in tenant");
+    if (!reward.active) throw BadRequest("Reward is not active");
+    if (card.tier.rank < reward.minTierRank) {
+      throw BadRequest("Card tier is below the reward's minimum");
+    }
+    if (card.pointsBalance < reward.pointsCost) {
+      throw BadRequest("Insufficient points balance");
+    }
+
+    await tx.loyaltyCard.update({
+      where: { id: card.id },
+      data: { pointsBalance: { decrement: reward.pointsCost } },
+    });
+
+    const txRow = await tx.transaction.create({
+      data: {
+        tenantId: input.tenantId,
+        locationId: input.locationId,
+        customerId: card.customerId,
+        cardId: card.id,
+        kind: "REDEEM_REWARD",
+        pointsDelta: -reward.pointsCost,
+        note: reward.name,
+        idempotencyKey: input.idempotencyKey,
+      },
+    });
+
+    await enqueuePassUpdate(tx, card.id, { reason: "balance_changed" });
+    return txRow;
+  });
+}

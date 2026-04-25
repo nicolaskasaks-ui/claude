@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chui-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: chui
+      POSTGRES_PASSWORD: chui
+      POSTGRES_DB: chui_loyalty
+    ports:
+      - "5432:5432"
+    volumes:
+      - chui_pgdata:/var/lib/postgresql/data
+
+volumes:
+  chui_pgdata:
