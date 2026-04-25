@@ -157,6 +157,10 @@ Se itera sobre todas las tarjetas del tenant cuyo tier coincide y se actualiza s
    curl http://localhost:3000/health
    ```
 
+6. Probá las páginas:
+   - Landing de inscripción (la pegás en un QR en la mesa): `http://localhost:3000/app/enroll.html?tenant=chui`
+   - POS web para el cajero: `http://localhost:3000/app/pos.html` (login: `owner@chui.com` / `chui-change-me-please`)
+
 ## Certificados de wallet (cuando se pase a producción)
 
 - **Apple**: en developer.apple.com -> Identifiers -> Pass Type IDs, crear `pass.com.chui.loyalty`. Generar el certificado, exportar a `.pem` + clave, y descargar el WWDR Intermediate. Apuntar `APPLE_PASS_*` y `APPLE_WWDR_CERT_PATH` a esos archivos. Nunca commitear los certs.

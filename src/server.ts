@@ -1,8 +1,11 @@
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import jwt from "@fastify/jwt";
 import rateLimit from "@fastify/rate-limit";
+import staticPlugin from "@fastify/static";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
 import { env } from "./lib/env.js";
@@ -17,6 +20,7 @@ import { terminalRoutes } from "./routes/terminal.js";
 import { terminalAdminRoutes } from "./routes/terminals-admin.js";
 import { campaignRoutes } from "./routes/campaigns.js";
 import { walletRoutes } from "./routes/wallet.js";
+import { publicRoutes, customerLookupRoutes } from "./routes/public.js";
 
 export function buildServer() {
   const app = Fastify({
@@ -35,6 +39,18 @@ export function buildServer() {
 
   app.get("/health", async () => ({ status: "ok" }));
 
+  // Static pages: customer enrollment landing + cashier POS. We resolve the
+  // path relative to the running file so it works in dev (tsx) and in the
+  // built dist/ output the same way.
+  const here = dirname(fileURLToPath(import.meta.url));
+  app.register(staticPlugin, {
+    root: join(here, "..", "public"),
+    prefix: "/app/",
+    decorateReply: false,
+  });
+
+  app.register(publicRoutes);
+  app.register(customerLookupRoutes);
   app.register(authRoutes);
   app.register(customerRoutes);
   app.register(cardRoutes);

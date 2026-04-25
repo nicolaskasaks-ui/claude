@@ -4,6 +4,18 @@ Auth:
 - Staff (panel admin / web): `Authorization: Bearer <jwt>` obtenido en `POST /v1/auth/staff/login`.
 - Terminales (lector NFC en el local): `Authorization: Terminal <api-key>` + `X-Tenant-Id: <tenantId>`.
 
+## Public (sin auth)
+- `GET /v1/public/tenants/:slug` — datos de marca del tenant para la landing.
+- `GET /v1/public/tenants/:slug/tiers` — para mostrarle al cliente los niveles del programa.
+- `POST /v1/public/enroll` — `{ tenantSlug, firstName, lastName?, email?, phone? }` → crea cliente + tarjeta y devuelve `appleWalletUrl` y `googleWalletUrl`.
+
+## Páginas web (servidas por el mismo Fastify)
+- `GET /app/enroll.html?tenant=chui` — landing de inscripción para clientes (QR en la mesa apunta acá).
+- `GET /app/pos.html` — POS web para cajero. Login con email + password de staff, búsqueda de cliente, acreditar puntos, canjear premios.
+
+## Lookup
+- `GET /v1/lookup/customer?tenantSlug=chui&q=...` — usado por el POS cuando no hay NFC y el cajero busca al cliente por nombre/email/teléfono.
+
 ## Auth
 - `POST /v1/auth/staff/login` — body `{ tenantSlug, email, password }` → `{ token, role, tenantId }`.
 

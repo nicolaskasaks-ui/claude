@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Sumate al programa</title>
+    <style>
+      :root { --bg: #0F1B2D; --card: #ffffff; --fg: #0F1B2D; --muted: #5b6675; --accent: #D4AF37; }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; padding: 24px; }
+      .card { max-width: 480px; margin: 0 auto; background: var(--card); border-radius: 18px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
+      h1 { margin: 0 0 4px; font-size: 24px; }
+      .sub { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
+      label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+      input { width: 100%; padding: 12px 14px; font-size: 16px; border: 1px solid #d8dee5; border-radius: 10px; outline: none; }
+      input:focus { border-color: var(--accent); }
+      button { width: 100%; margin-top: 20px; padding: 14px; font-size: 16px; font-weight: 600; background: var(--bg); color: white; border: 0; border-radius: 12px; cursor: pointer; }
+      button:disabled { opacity: 0.5; cursor: not-allowed; }
+      .tiers { display: flex; gap: 8px; margin-top: 18px; }
+      .tier { flex: 1; padding: 10px; border-radius: 10px; text-align: center; font-size: 12px; color: white; font-weight: 600; }
+      .result { display: none; text-align: center; }
+      .result.active { display: block; }
+      .form.done { display: none; }
+      .wallet-btns { display: flex; gap: 10px; margin-top: 18px; flex-direction: column; }
+      .wallet-btn { padding: 14px; border-radius: 12px; text-decoration: none; font-weight: 600; text-align: center; }
+      .apple { background: #000; color: white; }
+      .google { background: #4285F4; color: white; }
+      .err { color: #b00020; font-size: 13px; margin-top: 8px; }
+      .footer { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1 id="brand">Sumate</h1>
+      <div class="sub">Acumulá puntos en cada visita y subí de nivel.</div>
+      <div class="tiers" id="tiers"></div>
+      <form class="form" id="form">
+        <label>Nombre</label>
+        <input id="firstName" required autocomplete="given-name" />
+        <label>Apellido</label>
+        <input id="lastName" autocomplete="family-name" />
+        <label>Email</label>
+        <input id="email" type="email" autocomplete="email" />
+        <label>Teléfono</label>
+        <input id="phone" type="tel" autocomplete="tel" />
+        <button type="submit" id="submit">Generar mi tarjeta</button>
+        <div class="err" id="err"></div>
+      </form>
+      <div class="result" id="result">
+        <h2>¡Listo!</h2>
+        <p class="sub">Agregala a tu wallet:</p>
+        <div class="wallet-btns">
+          <a class="wallet-btn apple" id="appleLink">Agregar a Apple Wallet</a>
+          <a class="wallet-btn google" id="googleLink">Agregar a Google Wallet</a>
+        </div>
+      </div>
+      <div class="footer" id="footer"></div>
+    </div>
+    <script>
+      const params = new URLSearchParams(location.search);
+      const slug = params.get("tenant") || "chui";
+
+      async function bootstrap() {
+        try {
+          const [tenant, tiers] = await Promise.all([
+            fetch(`/v1/public/tenants/${slug}`).then((r) => r.json()),
+            fetch(`/v1/public/tenants/${slug}/tiers`).then((r) => r.json()),
+          ]);
+          document.getElementById("brand").textContent = `Sumate a ${tenant.name}`;
+          document.body.style.background = tenant.brandColor || "#0F1B2D";
+          document.getElementById("footer").textContent = `Programa de fidelidad de ${tenant.name}`;
+          const tiersEl = document.getElementById("tiers");
+          tiersEl.innerHTML = "";
+          for (const t of tiers) {
+            const div = document.createElement("div");
+            div.className = "tier";
+            div.style.background = t.color;
+            div.innerHTML = `<div>${t.name}</div><div style="opacity:.85;font-weight:400">${t.discountPct}% off</div>`;
+            tiersEl.appendChild(div);
+          }
+        } catch (e) {
+          document.getElementById("err").textContent = "No pudimos cargar el comercio.";
+        }
+      }
+
+      document.getElementById("form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById("submit");
+        const errEl = document.getElementById("err");
+        errEl.textContent = "";
+        btn.disabled = true;
+        btn.textContent = "Generando...";
+        try {
+          const body = {
+            tenantSlug: slug,
+            firstName: document.getElementById("firstName").value.trim(),
+            lastName: document.getElementById("lastName").value.trim() || undefined,
+            email: document.getElementById("email").value.trim() || undefined,
+            phone: document.getElementById("phone").value.trim() || undefined,
+          };
+          const res = await fetch("/v1/public/enroll", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.message || "No pudimos generar tu tarjeta");
+          }
+          const data = await res.json();
+          document.querySelector(".form").classList.add("done");
+          const r = document.getElementById("result");
+          r.classList.add("active");
+          document.getElementById("appleLink").href = data.appleWalletUrl;
+          document.getElementById("googleLink").href = data.googleWalletUrl;
+        } catch (err) {
+          errEl.textContent = err.message;
+          btn.disabled = false;
+          btn.textContent = "Generar mi tarjeta";
+        }
+      });
+
+      bootstrap();
+    </script>
+  </body>
+</html>
