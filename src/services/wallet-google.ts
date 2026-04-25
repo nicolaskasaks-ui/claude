@@ -112,7 +112,8 @@ export async function buildGiftSaveLink(args: {
       micros: BigInt(args.giftCard.balance) * 10000n,
       currencyCode: args.tenant.currency,
     },
-    barcode: { type: "QR_CODE", value: args.giftCard.code },
+    // Same identifier as the NFC payload so cashiers can scan or tap interchangeably.
+    barcode: { type: "QR_CODE", value: args.giftCard.nfcSerial },
     smartTapRedemptionValue: smartTapPayload,
   };
 

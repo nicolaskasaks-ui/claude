@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { issueCard } from "../services/loyalty.js";
 import { BadRequest, NotFound } from "../lib/errors.js";
+import { requireStaff } from "../middleware/auth.js";
 
 // Public, unauthenticated endpoints used by the customer-facing enrollment
 // page. The page is typically reached by scanning a QR code at the table.
@@ -117,16 +118,17 @@ export async function publicRoutes(app: FastifyInstance) {
 }
 
 // Helper used by the cashier UI: look up a customer by phone or email so the
-// cashier can find a card without an NFC reader (manual entry path).
+// cashier can find a card without an NFC reader (manual entry path), or
+// resolve a scanned QR code to the underlying card / gift card.
 export async function customerLookupRoutes(app: FastifyInstance) {
+  app.addHook("onRequest", requireStaff);
+
   app.get("/v1/lookup/customer", async (req) => {
-    const q = (req.query as { q?: string; tenantSlug?: string });
-    if (!q.q || !q.tenantSlug) throw BadRequest("q and tenantSlug are required");
-    const tenant = await prisma.tenant.findUnique({ where: { slug: q.tenantSlug } });
-    if (!tenant) throw NotFound();
+    const q = req.query as { q?: string };
+    if (!q.q) throw BadRequest("q is required");
     return prisma.customer.findMany({
       where: {
-        tenantId: tenant.id,
+        tenantId: req.staff!.tenantId,
         OR: [
           { email: { contains: q.q, mode: "insensitive" } },
           { phone: { contains: q.q } },
@@ -137,5 +139,41 @@ export async function customerLookupRoutes(app: FastifyInstance) {
       include: { cards: { include: { tier: true } } },
       take: 10,
     });
+  });
+
+  // Resolves whatever was scanned off a wallet pass barcode. The QR encodes
+  // the opaque NFC serial, which uniquely identifies either a loyalty card
+  // or a gift card within the tenant. Returns enough data for the POS to
+  // route the cashier to the correct flow (earn vs. redeem).
+  app.get("/v1/lookup/by-serial", async (req) => {
+    const q = req.query as { serial?: string };
+    if (!q.serial) throw BadRequest("serial is required");
+    const tenantId = req.staff!.tenantId;
+
+    const card = await prisma.loyaltyCard.findUnique({
+      where: { nfcSerial: q.serial },
+      include: { tier: true, customer: true },
+    });
+    if (card && card.tenantId === tenantId) {
+      return { kind: "loyalty" as const, card };
+    }
+
+    const gift = await prisma.giftCard.findUnique({
+      where: { nfcSerial: q.serial },
+    });
+    if (gift && gift.tenantId === tenantId) {
+      return { kind: "gift" as const, giftCard: gift };
+    }
+
+    // Some QR codes may carry the human-readable gift code (e.g. printed
+    // receipts). Fall back to that lookup so the cashier flow works either way.
+    const giftByCode = await prisma.giftCard.findUnique({
+      where: { code: q.serial },
+    });
+    if (giftByCode && giftByCode.tenantId === tenantId) {
+      return { kind: "gift" as const, giftCard: giftByCode };
+    }
+
+    throw NotFound("Pass not found in this tenant");
   });
 }

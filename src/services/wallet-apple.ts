@@ -128,7 +128,9 @@ export async function buildGiftPass(args: {
     },
   });
 
-  pass.setBarcodes({ message: args.giftCard.code, format: "PKBarcodeFormatQR" });
+  // Use the opaque nfcSerial (not the human code) so the QR encodes the same
+  // identifier the till would receive over an NFC tap with VAS.
+  pass.setBarcodes({ message: args.giftCard.nfcSerial, format: "PKBarcodeFormatQR" });
   pass.setNFC({ message: nfcMessage, encryptionPublicKey: undefined });
 
   return pass.getAsBuffer();

@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>POS · Lealtad</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
       :root { --bg: #f6f7f9; --card: #ffffff; --fg: #0F1B2D; --muted: #5b6675; --accent: #0F1B2D; --gold: #D4AF37; --green: #1f9d55; --red: #b00020; }
       * { box-sizing: border-box; }
@@ -19,22 +20,34 @@
       button { padding: 11px 16px; font-size: 14px; font-weight: 600; border: 0; border-radius: 8px; cursor: pointer; }
       button.primary { background: var(--accent); color: white; }
       button.secondary { background: #eef0f3; color: var(--fg); }
+      button.scan { background: var(--gold); color: black; width: 100%; padding: 14px; font-size: 15px; }
       button:disabled { opacity: 0.5; cursor: not-allowed; }
       .results { margin-top: 10px; max-height: 220px; overflow-y: auto; border: 1px solid #eef0f3; border-radius: 8px; }
       .result-row { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #eef0f3; display: flex; justify-content: space-between; }
       .result-row:hover { background: #f6f7f9; }
       .result-row:last-child { border-bottom: 0; }
       .selected { background: linear-gradient(135deg, #0F1B2D, #1F3B5C); color: white; padding: 16px; border-radius: 12px; margin-bottom: 14px; }
+      .selected.gift { background: linear-gradient(135deg, #2c3e50, #4ca1af); }
       .selected .tier-pill { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: var(--gold); color: black; font-weight: 700; }
       .stat { display: flex; justify-content: space-between; padding: 6px 0; }
       .stat .k { color: var(--muted); font-size: 13px; }
       .receipt { background: #f6f7f9; padding: 14px; border-radius: 10px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 13px; white-space: pre-wrap; }
-      .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 18px; background: var(--accent); color: white; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+      .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 18px; background: var(--accent); color: white; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 1000; }
       .toast.show { opacity: 1; }
       .toast.error { background: var(--red); }
       .toast.success { background: var(--green); }
       .row { display: flex; gap: 8px; }
       .row > * { flex: 1; }
+      .or { text-align: center; color: var(--muted); font-size: 12px; margin: 14px 0; }
+
+      /* Scanner modal */
+      .scanner { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100; display: none; align-items: center; justify-content: center; flex-direction: column; }
+      .scanner.active { display: flex; }
+      .scanner-frame { position: relative; width: min(90vw, 480px); aspect-ratio: 1; border-radius: 16px; overflow: hidden; }
+      .scanner-frame video { width: 100%; height: 100%; object-fit: cover; }
+      .scanner-overlay { position: absolute; inset: 12%; border: 3px solid var(--gold); border-radius: 12px; pointer-events: none; }
+      .scanner-hint { color: white; margin-top: 16px; font-size: 14px; }
+      .scanner-close { margin-top: 18px; background: white; color: black; padding: 10px 22px; border-radius: 999px; }
     </style>
   </head>
   <body>
@@ -55,33 +68,55 @@
         <div style="margin-top:14px"><button class="primary" id="loginBtn">Entrar</button></div>
       </section>
 
-      <section class="panel hidden" id="searchPanel" style="display:none">
-        <h2>1. Buscar cliente</h2>
-        <label>Email, teléfono o nombre</label>
-        <input id="search" placeholder="buscar..." />
+      <section class="panel" id="searchPanel" style="display:none">
+        <h2>1. Identificar pase</h2>
+        <button class="scan" id="scanBtn">Escanear QR del pase</button>
+        <div class="or">o buscar manualmente</div>
+        <input id="search" placeholder="email, teléfono o nombre" />
         <div class="results" id="results"></div>
       </section>
 
-      <section class="panel hidden" id="salePanel" style="display:none">
+      <section class="panel" id="salePanel" style="display:none">
         <h2>2. Venta</h2>
         <div id="selected"></div>
-        <label>Total de la venta (USD)</label>
-        <input id="amount" type="number" step="0.01" min="0" />
-        <div class="row" style="margin-top:14px">
-          <button class="primary" id="earnBtn">Acreditar puntos</button>
-          <button class="secondary" id="payGiftBtn">Pagar con gift card</button>
+        <div id="loyaltyActions" style="display:none">
+          <label>Total de la venta (USD)</label>
+          <input id="amount" type="number" step="0.01" min="0" />
+          <div class="row" style="margin-top:14px">
+            <button class="primary" id="earnBtn">Acreditar puntos</button>
+          </div>
+          <h2 style="margin-top:18px">Canjear premio</h2>
+          <select id="rewardSelect"></select>
+          <div style="margin-top:10px"><button class="secondary" id="redeemBtn">Canjear</button></div>
         </div>
-        <h2 style="margin-top:18px">3. Canjear premio</h2>
-        <select id="rewardSelect"></select>
-        <div style="margin-top:10px"><button class="secondary" id="redeemBtn">Canjear</button></div>
+        <div id="giftActions" style="display:none">
+          <label>Total de la venta (USD)</label>
+          <input id="giftAmount" type="number" step="0.01" min="0" />
+          <div class="row" style="margin-top:14px">
+            <button class="primary" id="giftPayBtn">Cobrar con gift card</button>
+          </div>
+        </div>
         <div id="receipt" style="margin-top:14px"></div>
       </section>
+    </div>
+
+    <div class="scanner" id="scanner">
+      <div class="scanner-frame">
+        <video id="video" autoplay muted playsinline></video>
+        <div class="scanner-overlay"></div>
+      </div>
+      <div class="scanner-hint">Apuntá la cámara al QR del pase</div>
+      <button class="scanner-close" id="scannerCloseBtn">Cancelar</button>
     </div>
 
     <div class="toast" id="toast"></div>
 
     <script>
-      const state = { token: null, tenantId: null, tenantSlug: null, customer: null, card: null };
+      const state = {
+        token: null, tenantId: null, tenantSlug: null,
+        kind: null, customer: null, card: null, giftCard: null,
+        scanStream: null, scanRaf: null,
+      };
 
       function toast(msg, type) {
         const el = document.getElementById("toast");
@@ -106,6 +141,11 @@
         });
       }
 
+      function uuid() {
+        return crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random());
+      }
+
+      // ---------- LOGIN ----------
       async function login() {
         try {
           const tenantSlug = document.getElementById("tenantSlug").value.trim();
@@ -141,6 +181,7 @@
         }
       }
 
+      // ---------- MANUAL SEARCH ----------
       let searchDebounce;
       document.addEventListener("input", (e) => {
         if (e.target && e.target.id === "search") {
@@ -162,12 +203,73 @@
           const row = document.createElement("div");
           row.className = "result-row";
           row.innerHTML = `<div><strong>${(c.firstName || "") + " " + (c.lastName || "")}</strong><br><span style="font-size:12px;color:#5b6675">${c.email || ""} ${c.phone || ""}</span></div>`;
-          row.onclick = () => selectCustomer(c.id);
+          row.onclick = () => selectLoyaltyCustomer(c.id);
           el.appendChild(row);
         }
       }
 
-      async function selectCustomer(id) {
+      // ---------- QR SCANNER ----------
+      async function openScanner() {
+        const scanner = document.getElementById("scanner");
+        const video = document.getElementById("video");
+        try {
+          state.scanStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment" },
+            audio: false,
+          });
+        } catch (e) {
+          toast("No pudimos acceder a la cámara: " + e.message, "error");
+          return;
+        }
+        video.srcObject = state.scanStream;
+        scanner.classList.add("active");
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        const tick = () => {
+          if (!scanner.classList.contains("active")) return;
+          if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = window.jsQR(img.data, img.width, img.height, { inversionAttempts: "dontInvert" });
+            if (code && code.data) {
+              closeScanner();
+              onScanned(code.data.trim());
+              return;
+            }
+          }
+          state.scanRaf = requestAnimationFrame(tick);
+        };
+        state.scanRaf = requestAnimationFrame(tick);
+      }
+
+      function closeScanner() {
+        const scanner = document.getElementById("scanner");
+        scanner.classList.remove("active");
+        if (state.scanRaf) cancelAnimationFrame(state.scanRaf);
+        if (state.scanStream) {
+          state.scanStream.getTracks().forEach((t) => t.stop());
+          state.scanStream = null;
+        }
+      }
+
+      async function onScanned(serial) {
+        try {
+          const res = await api("/v1/lookup/by-serial?serial=" + encodeURIComponent(serial));
+          if (res.kind === "loyalty") {
+            renderLoyalty(res.card);
+          } else if (res.kind === "gift") {
+            renderGift(res.giftCard);
+          }
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+
+      // ---------- LOYALTY FLOW ----------
+      async function selectLoyaltyCustomer(id) {
         const c = await api("/v1/customers/" + id);
         const card = c.cards && c.cards[0];
         if (!card) {
@@ -175,7 +277,15 @@
           return;
         }
         state.customer = c;
+        renderLoyalty(card, c);
+      }
+
+      function renderLoyalty(card, customer) {
+        state.kind = "loyalty";
         state.card = card;
+        state.giftCard = null;
+        if (customer) state.customer = customer;
+        const c = state.customer || card.customer || {};
         const sel = document.getElementById("selected");
         sel.className = "selected";
         sel.innerHTML = `
@@ -189,16 +299,38 @@
           <div class="stat"><span class="k">Puntos</span><span>${card.pointsBalance}</span></div>
           <div class="stat"><span class="k">Descuento del nivel</span><span>${card.tier.discountPct}%</span></div>
         `;
+        document.getElementById("loyaltyActions").style.display = "block";
+        document.getElementById("giftActions").style.display = "none";
       }
 
-      function uuid() {
-        return crypto.randomUUID ? crypto.randomUUID() : (Date.now() + "-" + Math.random());
+      function renderGift(gc) {
+        state.kind = "gift";
+        state.giftCard = gc;
+        state.card = null;
+        state.customer = null;
+        const sel = document.getElementById("selected");
+        sel.className = "selected gift";
+        const balance = (gc.balance / 100).toFixed(2);
+        sel.innerHTML = `
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div style="font-size:14px;opacity:.7">Gift card</div>
+              <div style="font-size:18px;font-weight:600">${gc.code}</div>
+            </div>
+          </div>
+          <div class="stat"><span class="k">Saldo disponible</span><span>$${balance}</span></div>
+        `;
+        document.getElementById("loyaltyActions").style.display = "none";
+        document.getElementById("giftActions").style.display = "block";
       }
 
+      // ---------- ACTIONS ----------
       document.getElementById("loginBtn").onclick = login;
+      document.getElementById("scanBtn").onclick = openScanner;
+      document.getElementById("scannerCloseBtn").onclick = closeScanner;
 
       document.getElementById("earnBtn").onclick = async () => {
-        if (!state.card) return toast("Seleccioná un cliente", "error");
+        if (!state.card) return toast("Identificá un cliente primero", "error");
         const dollars = parseFloat(document.getElementById("amount").value);
         if (!dollars || dollars <= 0) return toast("Ingresá un monto", "error");
         try {
@@ -211,14 +343,16 @@
           });
           document.getElementById("receipt").innerHTML = `<div class="receipt">Venta acreditada\nPuntos sumados: ${tx.pointsDelta}\nMonto: $${dollars.toFixed(2)}</div>`;
           toast("+" + tx.pointsDelta + " puntos", "success");
-          selectCustomer(state.customer.id);
+          // refresh card view
+          const refreshed = await api("/v1/lookup/by-serial?serial=" + encodeURIComponent(state.card.nfcSerial));
+          if (refreshed.kind === "loyalty") renderLoyalty(refreshed.card);
         } catch (e) {
           toast(e.message, "error");
         }
       };
 
       document.getElementById("redeemBtn").onclick = async () => {
-        if (!state.card) return toast("Seleccioná un cliente", "error");
+        if (!state.card) return toast("Identificá un cliente primero", "error");
         const rewardId = document.getElementById("rewardSelect").value;
         if (!rewardId) return toast("Seleccioná un premio", "error");
         try {
@@ -227,14 +361,32 @@
             body: JSON.stringify({ rewardId, idempotencyKey: uuid() }),
           });
           toast("Premio canjeado", "success");
-          selectCustomer(state.customer.id);
+          const refreshed = await api("/v1/lookup/by-serial?serial=" + encodeURIComponent(state.card.nfcSerial));
+          if (refreshed.kind === "loyalty") renderLoyalty(refreshed.card);
         } catch (e) {
           toast(e.message, "error");
         }
       };
 
-      document.getElementById("payGiftBtn").onclick = () => {
-        toast("Acercá la wallet del cliente al lector NFC (próximo paso)", "");
+      document.getElementById("giftPayBtn").onclick = async () => {
+        if (!state.giftCard) return toast("Escaneá una gift card", "error");
+        const dollars = parseFloat(document.getElementById("giftAmount").value);
+        if (!dollars || dollars <= 0) return toast("Ingresá un monto", "error");
+        const cents = Math.round(dollars * 100);
+        const debit = Math.min(cents, state.giftCard.balance);
+        try {
+          await api("/v1/gift-cards/" + state.giftCard.id + "/redeem", {
+            method: "POST",
+            body: JSON.stringify({ amountCents: debit, idempotencyKey: uuid() }),
+          });
+          const remaining = cents - debit;
+          document.getElementById("receipt").innerHTML = `<div class="receipt">Total: $${dollars.toFixed(2)}\nPagado con gift: $${(debit / 100).toFixed(2)}\n${remaining > 0 ? "Falta cobrar: $" + (remaining / 100).toFixed(2) : "Venta cubierta totalmente."}</div>`;
+          toast("Gift card debitada", "success");
+          const refreshed = await api("/v1/lookup/by-serial?serial=" + encodeURIComponent(state.giftCard.nfcSerial));
+          if (refreshed.kind === "gift") renderGift(refreshed.giftCard);
+        } catch (e) {
+          toast(e.message, "error");
+        }
       };
     </script>
   </body>

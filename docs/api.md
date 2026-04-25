@@ -13,8 +13,9 @@ Auth:
 - `GET /app/enroll.html?tenant=chui` — landing de inscripción para clientes (QR en la mesa apunta acá).
 - `GET /app/pos.html` — POS web para cajero. Login con email + password de staff, búsqueda de cliente, acreditar puntos, canjear premios.
 
-## Lookup
-- `GET /v1/lookup/customer?tenantSlug=chui&q=...` — usado por el POS cuando no hay NFC y el cajero busca al cliente por nombre/email/teléfono.
+## Lookup (staff auth)
+- `GET /v1/lookup/customer?q=...` — búsqueda manual por nombre/email/teléfono.
+- `GET /v1/lookup/by-serial?serial=...` — resuelve un QR escaneado de un pase. Devuelve `{ kind: "loyalty", card }` o `{ kind: "gift", giftCard }`.
 
 ## Auth
 - `POST /v1/auth/staff/login` — body `{ tenantSlug, email, password }` → `{ token, role, tenantId }`.
