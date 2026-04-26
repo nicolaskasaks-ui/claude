@@ -1,0 +1,58 @@
+# Fly.io app definition for chui-loyalty.
+#
+# Two processes share one image:
+#   - `app`    runs the HTTP server (Fastify on port 3000)
+#   - `worker` runs the BullMQ wallet-push consumer
+#
+# Set RUN_WORKER_INLINE=false in production so the API process doesn't also
+# pick up jobs (the worker process is the one consuming).
+
+app = "chui-loyalty"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  LOG_LEVEL = "info"
+  RUN_WORKER_INLINE = "false"
+
+[processes]
+  app = "node dist/server.js"
+  worker = "node dist/workers/wallet-push.js"
+
+[[services]]
+  processes = ["app"]
+  protocol = "tcp"
+  internal_port = 3000
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 250
+    soft_limit = 200
+
+  [[services.http_checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[deploy]
+  release_command = "npx prisma migrate deploy"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
