@@ -130,7 +130,7 @@
         margin: 0 0 8px;
         font-weight: 500;
       }
-      input {
+      input, select {
         width: 100%;
         padding: 12px 0;
         font-size: 16px;
@@ -144,8 +144,32 @@
         border-radius: 0;
       }
       input::placeholder { color: var(--muted); }
-      input:focus { border-bottom-color: var(--ink); }
-      input:focus + .underline { transform: scaleX(1); }
+      input:focus, select:focus { border-bottom-color: var(--ink); }
+
+      /* Phone with country selector */
+      .phone-row {
+        display: grid;
+        grid-template-columns: 168px 1fr;
+        gap: 16px;
+        align-items: end;
+      }
+      @media (max-width: 480px) {
+        .phone-row { grid-template-columns: 1fr; gap: 0; }
+      }
+      .phone-row select {
+        font-size: 15px;
+        padding-right: 24px;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6' fill='none'><path d='M1 1L5 5L9 1' stroke='%2310281A' stroke-width='1.2'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 4px center;
+        appearance: none;
+        -webkit-appearance: none;
+      }
+      .phone-row .dial {
+        font-variant-numeric: tabular-nums;
+        color: var(--ink-soft);
+        white-space: nowrap;
+      }
 
       button.primary, a.primary {
         display: inline-flex;
@@ -288,7 +312,10 @@
             </div>
             <div class="field">
               <label for="phone">Teléfono</label>
-              <input id="phone" type="tel" autocomplete="tel" />
+              <div class="phone-row">
+                <select id="phoneCountry" aria-label="País"></select>
+                <input id="phone" type="tel" autocomplete="tel-national" inputmode="tel" placeholder="11 5555 5555" />
+              </div>
             </div>
 
             <button type="submit" id="submit" class="primary">Generar mi tarjeta</button>
@@ -318,7 +345,68 @@
       const params = new URLSearchParams(location.search);
       const slug = params.get("tenant") || "chui";
 
+      // Country list. LATAM-first (the obvious customer base for a Buenos Aires
+      // restaurant), then USA/Spain, then alphabetical for the rest. iso2 is
+      // there in case we want flag emojis later via Unicode regional indicators.
+      const COUNTRIES = [
+        { iso: "AR", name: "Argentina", dial: "+54" },
+        { iso: "UY", name: "Uruguay", dial: "+598" },
+        { iso: "CL", name: "Chile", dial: "+56" },
+        { iso: "BR", name: "Brasil", dial: "+55" },
+        { iso: "PY", name: "Paraguay", dial: "+595" },
+        { iso: "BO", name: "Bolivia", dial: "+591" },
+        { iso: "PE", name: "Perú", dial: "+51" },
+        { iso: "CO", name: "Colombia", dial: "+57" },
+        { iso: "EC", name: "Ecuador", dial: "+593" },
+        { iso: "VE", name: "Venezuela", dial: "+58" },
+        { iso: "MX", name: "México", dial: "+52" },
+        { iso: "US", name: "Estados Unidos", dial: "+1" },
+        { iso: "ES", name: "España", dial: "+34" },
+        { iso: "__separator", name: "──────", dial: "" },
+        { iso: "DE", name: "Alemania", dial: "+49" },
+        { iso: "AU", name: "Australia", dial: "+61" },
+        { iso: "BE", name: "Bélgica", dial: "+32" },
+        { iso: "CA", name: "Canadá", dial: "+1" },
+        { iso: "CN", name: "China", dial: "+86" },
+        { iso: "DK", name: "Dinamarca", dial: "+45" },
+        { iso: "FR", name: "Francia", dial: "+33" },
+        { iso: "GR", name: "Grecia", dial: "+30" },
+        { iso: "NL", name: "Holanda", dial: "+31" },
+        { iso: "IN", name: "India", dial: "+91" },
+        { iso: "IE", name: "Irlanda", dial: "+353" },
+        { iso: "IL", name: "Israel", dial: "+972" },
+        { iso: "IT", name: "Italia", dial: "+39" },
+        { iso: "JP", name: "Japón", dial: "+81" },
+        { iso: "NO", name: "Noruega", dial: "+47" },
+        { iso: "NZ", name: "Nueva Zelanda", dial: "+64" },
+        { iso: "PT", name: "Portugal", dial: "+351" },
+        { iso: "GB", name: "Reino Unido", dial: "+44" },
+        { iso: "RU", name: "Rusia", dial: "+7" },
+        { iso: "SE", name: "Suecia", dial: "+46" },
+        { iso: "CH", name: "Suiza", dial: "+41" },
+      ];
+
+      function fillCountrySelect() {
+        const sel = document.getElementById("phoneCountry");
+        sel.innerHTML = COUNTRIES.map((c, i) => {
+          if (c.iso === "__separator") return `<option disabled>${c.name}</option>`;
+          return `<option value="${c.dial}" data-iso="${c.iso}">${c.name} ${c.dial}</option>`;
+        }).join("");
+        sel.value = "+54"; // default Argentina
+      }
+
+      function composePhone() {
+        const dial = document.getElementById("phoneCountry").value;
+        const raw = document.getElementById("phone").value.trim();
+        if (!raw) return undefined;
+        // Strip everything that's not a digit, then prefix with dial code.
+        const digits = raw.replace(/\D+/g, "");
+        if (!digits) return undefined;
+        return `${dial}${digits}`;
+      }
+
       async function bootstrap() {
+        fillCountrySelect();
         try {
           const [tenant, tiers] = await Promise.all([
             fetch(`/v1/public/tenants/${slug}`).then((r) => r.json()),
@@ -353,7 +441,7 @@
             firstName: document.getElementById("firstName").value.trim(),
             lastName: document.getElementById("lastName").value.trim() || undefined,
             email: document.getElementById("email").value.trim() || undefined,
-            phone: document.getElementById("phone").value.trim() || undefined,
+            phone: composePhone(),
           };
           if (!body.firstName) throw new Error("Necesitamos al menos tu nombre.");
           if (!body.email && !body.phone) throw new Error("Dejanos un email o un teléfono para identificarte.");
