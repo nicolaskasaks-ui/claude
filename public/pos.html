@@ -411,8 +411,9 @@
 
       function api(path, init) {
         init = init || {};
+        const baseHeaders = init.body ? { "Content-Type": "application/json" } : {};
         init.headers = Object.assign(
-          { "Content-Type": "application/json" },
+          baseHeaders,
           init.headers || {},
           state.token ? { Authorization: "Bearer " + state.token } : {},
         );
