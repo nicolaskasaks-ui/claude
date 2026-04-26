@@ -8,6 +8,12 @@ const schema = z.object({
 
   DATABASE_URL: z.string().url(),
 
+  REDIS_URL: z.string().default("redis://localhost:6379"),
+  RUN_WORKER_INLINE: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((v) => v === "true"),
+
   JWT_SECRET: z.string().min(16),
   JWT_EXPIRES_IN: z.string().default("7d"),
   NFC_TOKEN_SECRET: z.string().min(16),

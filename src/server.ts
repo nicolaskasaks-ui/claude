@@ -21,6 +21,7 @@ import { terminalAdminRoutes } from "./routes/terminals-admin.js";
 import { campaignRoutes } from "./routes/campaigns.js";
 import { walletRoutes } from "./routes/wallet.js";
 import { publicRoutes, customerLookupRoutes } from "./routes/public.js";
+import { startWalletPushWorker } from "./workers/wallet-push.js";
 
 export function buildServer() {
   const app = Fastify({
@@ -82,6 +83,10 @@ export function buildServer() {
 
 async function main() {
   const app = buildServer();
+  if (env.RUN_WORKER_INLINE) {
+    startWalletPushWorker();
+    app.log.info("[wallet-push:worker] running inline with HTTP server");
+  }
   try {
     await app.listen({ port: env.PORT, host: "0.0.0.0" });
   } catch (err) {
