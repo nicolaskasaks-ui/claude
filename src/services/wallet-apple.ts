@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { PKPass } from "passkit-generator";
 import type { GiftCard, LoyaltyCard, Tenant, Tier } from "@prisma/client";
 import { env } from "../lib/env.js";
@@ -5,14 +8,58 @@ import { loadSecretBuffer } from "../lib/secret-loader.js";
 
 // Generates an Apple Wallet (.pkpass) bundle for either a loyalty card or a
 // gift card. The pass embeds:
-//   * A signed NFC token in the `nfc.message` field (Apple VAS) so the till
-//     reader sees a tamper-evident payload on tap.
 //   * A `webServiceURL` so iOS phones register with our PassKit web service
 //     and we can push pass updates (lock-screen notifications) later.
+//   * A QR barcode encoding the card's opaque nfcSerial. NFC tap (Apple VAS)
+//     is intentionally not configured here — VAS approval is a separate
+//     Apple workflow and requires an encryption public key. Until that lands,
+//     cards work as QR only.
 //
 // Apple's signing requires a Pass Type ID certificate plus the WWDR root
 // chain. Both come from developer.apple.com. If the certs are not configured
 // the function throws — wallet generation is intentionally a hard dependency.
+//
+// Brand assets (logo, icon, strip) live per tenant under
+//   <repo>/assets/passes/<tenant.slug>/{logo,icon,strip}{,@2x}.png
+// and are loaded once and cached in memory.
+
+const ASSET_FILENAMES = [
+  "logo.png",
+  "logo@2x.png",
+  "icon.png",
+  "icon@2x.png",
+  "strip.png",
+  "strip@2x.png",
+] as const;
+
+type AssetBuffers = Record<string, Buffer>;
+
+const assetCache = new Map<string, AssetBuffers>();
+
+async function loadTenantAssets(slug: string): Promise<AssetBuffers> {
+  const cached = assetCache.get(slug);
+  if (cached) return cached;
+
+  // Resolve relative to this source file so it works in dev (tsx, src/) and
+  // in built output (dist/) the same way. Both are 3 levels deep below repo
+  // root: src/services/wallet-apple.ts and dist/services/wallet-apple.js.
+  const here = dirname(fileURLToPath(import.meta.url));
+  const baseDir = join(here, "..", "..", "assets", "passes", slug);
+  const buffers: AssetBuffers = {};
+  await Promise.all(
+    ASSET_FILENAMES.map(async (name) => {
+      try {
+        buffers[name] = await readFile(join(baseDir, name));
+      } catch {
+        // Optional assets (e.g. strip.png on tenants that don't use one) are
+        // simply skipped. Missing logo/icon will produce an Apple validation
+        // error at install-time — that's the right failure surface.
+      }
+    }),
+  );
+  assetCache.set(slug, buffers);
+  return buffers;
+}
 
 async function loadCerts() {
   if (!env.APPLE_PASS_TYPE_IDENTIFIER || !env.APPLE_TEAM_IDENTIFIER) {
@@ -38,6 +85,12 @@ function dollars(cents: number, currency: string) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
 }
 
+function formatLastUpdate(d: Date): string {
+  // Match Juicy's format ("HH:mm DD/MM") since that's what users expect.
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+}
+
 export async function buildLoyaltyPass(args: {
   tenant: Tenant;
   card: LoyaltyCard;
@@ -45,39 +98,70 @@ export async function buildLoyaltyPass(args: {
   customerName: string;
   publicHost: string;
 }): Promise<Buffer> {
-  const certs = await loadCerts();
+  const [certs, assets] = await Promise.all([
+    loadCerts(),
+    loadTenantAssets(args.tenant.slug),
+  ]);
 
-  const pass = new PKPass({}, certs, {
+  // Layout deliberately matches the existing Chuí pass design: a strip image
+  // hero (with brand wordmark + multilingual greeting baked in), Points in
+  // the header, member name + last-update in secondary fields, no primary
+  // fields (the strip image occupies that space). Tier is intentionally not
+  // displayed on the pass — the program is points-first; tier perks (if any)
+  // apply at the till but don't change how the card looks.
+  const pass = new PKPass(assets, certs, {
     formatVersion: 1,
     passTypeIdentifier: env.APPLE_PASS_TYPE_IDENTIFIER!,
     teamIdentifier: env.APPLE_TEAM_IDENTIFIER!,
     serialNumber: args.card.id,
     organizationName: args.tenant.name,
-    description: `${args.tenant.name} Loyalty`,
-    foregroundColor: "rgb(255,255,255)",
-    backgroundColor: hexToRgb(args.tier.color),
-    labelColor: "rgb(255,255,255)",
+    description: `${args.tenant.name} Friends`,
+    foregroundColor: "rgb(237,235,226)",
+    backgroundColor: "rgb(16,40,26)",
+    labelColor: "rgb(237,235,226)",
     webServiceURL: `${args.publicHost}/v1/wallet/apple`,
-    authenticationToken: args.card.id, // simple per-card token; Apple requires >=16 chars
+    authenticationToken: args.card.id,
   });
 
-  // Pass type and pass-type-specific fields are set after construction in
-  // passkit-generator v3 (the constructor only takes top-level pass.json).
   pass.type = "storeCard";
-  pass.headerFields.push({ key: "tier", label: "Nivel", value: args.tier.name });
-  pass.primaryFields.push({ key: "points", label: "Puntos", value: args.card.pointsBalance });
-  pass.secondaryFields.push({ key: "name", label: "Miembro", value: args.customerName });
-  pass.auxiliaryFields.push({ key: "discount", label: "Descuento", value: `${args.tier.discountPct}%` });
+  pass.headerFields.push({
+    key: "points",
+    label: "Points",
+    value: args.card.pointsBalance,
+    changeMessage: "Points updated to %@",
+  });
+  pass.secondaryFields.push(
+    { key: "member_name", label: "Member Name", value: args.customerName },
+    { key: "last_update", label: "Last Update", value: formatLastUpdate(new Date()) },
+  );
   pass.backFields.push(
-    { key: "id", label: "ID", value: args.card.nfcSerial },
-    { key: "terms", label: "Condiciones", value: "Programa sujeto a cambios." },
+    {
+      key: "instagram",
+      label: "Instagram",
+      value: "https://www.instagram.com/chui.ba/",
+      attributedValue: '<a href="https://www.instagram.com/chui.ba/">@chui.ba</a>',
+    },
+    {
+      key: "reservations",
+      label: "Reservas / Book a table",
+      value: "https://www.opentable.com/r/chui-buenos-aires-reservations-buenos-aires",
+      attributedValue:
+        '<a href="https://www.opentable.com/r/chui-buenos-aires-reservations-buenos-aires">OpenTable</a>',
+    },
+    {
+      key: "card_id",
+      label: "ID",
+      value: args.card.nfcSerial,
+    },
+    {
+      key: "terms",
+      label: "Terms and Conditions",
+      value:
+        "Programa de fidelidad de Chuí. Los puntos se acreditan en cada visita y se pueden canjear por beneficios definidos por el restaurante. Programa sujeto a cambios.",
+    },
   );
 
   pass.setBarcodes({ message: args.card.nfcSerial, format: "PKBarcodeFormatQR" });
-  // NFC tap (Apple VAS) is intentionally not configured here. VAS approval
-  // is a separate Apple workflow and requires an encryption public key. Until
-  // that lands, cards work as QR only — re-enable setNFC once we have the
-  // VAS Merchant Public Key and feed it via env.
 
   return pass.getAsBuffer();
 }
@@ -87,17 +171,21 @@ export async function buildGiftPass(args: {
   giftCard: GiftCard;
   publicHost: string;
 }): Promise<Buffer> {
-  const certs = await loadCerts();
+  const [certs, assets] = await Promise.all([
+    loadCerts(),
+    loadTenantAssets(args.tenant.slug),
+  ]);
 
-  const pass = new PKPass({}, certs, {
+  const pass = new PKPass(assets, certs, {
     formatVersion: 1,
     passTypeIdentifier: env.APPLE_PASS_TYPE_IDENTIFIER!,
     teamIdentifier: env.APPLE_TEAM_IDENTIFIER!,
     serialNumber: args.giftCard.id,
     organizationName: args.tenant.name,
     description: `${args.tenant.name} Gift Card`,
-    foregroundColor: "rgb(255,255,255)",
-    backgroundColor: hexToRgb(args.tenant.brandColor),
+    foregroundColor: "rgb(237,235,226)",
+    backgroundColor: "rgb(16,40,26)",
+    labelColor: "rgb(237,235,226)",
   });
 
   pass.type = "storeCard";
@@ -109,18 +197,7 @@ export async function buildGiftPass(args: {
   });
   pass.secondaryFields.push({ key: "code", label: "Código", value: args.giftCard.code });
 
-  // Use the opaque nfcSerial (not the human code) so the QR encodes the same
-  // identifier the till would receive over a future NFC tap with VAS.
   pass.setBarcodes({ message: args.giftCard.nfcSerial, format: "PKBarcodeFormatQR" });
-  // setNFC is intentionally omitted — see buildLoyaltyPass for context.
 
   return pass.getAsBuffer();
-}
-
-function hexToRgb(hex: string): string {
-  const m = hex.replace("#", "");
-  const r = parseInt(m.slice(0, 2), 16);
-  const g = parseInt(m.slice(2, 4), 16);
-  const b = parseInt(m.slice(4, 6), 16);
-  return `rgb(${r},${g},${b})`;
 }

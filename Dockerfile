@@ -19,6 +19,7 @@ COPY tsconfig.json ./
 COPY prisma ./prisma
 COPY src ./src
 COPY public ./public
+COPY assets ./assets
 
 RUN npx prisma generate \
   && npm run build
@@ -37,6 +38,7 @@ RUN npm ci --omit=dev \
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/assets ./assets
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
