@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin · Lealtad</title>
+    <style>
+      :root {
+        --bg: #f6f7f9;
+        --card: #ffffff;
+        --fg: #0F1B2D;
+        --muted: #5b6675;
+        --accent: #0F1B2D;
+        --accent-2: #1F3B5C;
+        --gold: #D4AF37;
+        --green: #1f9d55;
+        --red: #b00020;
+        --border: #d8dee5;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); text-wrap: pretty; }
+      h1, h2, h3 { text-wrap: balance; }
+      header { background: var(--accent); color: white; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
+      header .brand { font-weight: 700; }
+      header .who { font-size: 13px; opacity: .85; display: flex; gap: 14px; align-items: center; }
+      header .who button { background: transparent; color: white; border: 1px solid rgba(255,255,255,.3); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+      nav.tabs { background: white; border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; gap: 4px; overflow-x: auto; }
+      nav.tabs button { background: transparent; border: 0; padding: 14px 16px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+      nav.tabs button.active { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+      main { max-width: 1200px; margin: 0 auto; padding: 20px; }
+      .panel { background: var(--card); border-radius: 14px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 18px; }
+      .panel h2 { margin: 0 0 12px; font-size: 16px; }
+      .panel h3 { margin: 18px 0 8px; font-size: 14px; color: var(--muted); }
+      label { font-size: 12px; color: var(--muted); display: block; margin: 8px 0 4px; }
+      input, select, textarea { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: white; font-family: inherit; }
+      textarea { resize: vertical; min-height: 70px; }
+      button { padding: 10px 16px; font-size: 14px; font-weight: 600; border: 0; border-radius: 8px; cursor: pointer; }
+      button.primary { background: var(--accent); color: white; }
+      button.secondary { background: #eef0f3; color: var(--fg); }
+      button.danger { background: var(--red); color: white; }
+      button.ghost { background: transparent; color: var(--muted); padding: 6px 10px; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      .row { display: flex; gap: 10px; }
+      .row > * { flex: 1; }
+      .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+      .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+      .kpi { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white; padding: 18px; border-radius: 12px; }
+      .kpi .label { font-size: 12px; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
+      .kpi .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
+      .kpi .sub { font-size: 12px; opacity: .7; margin-top: 4px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eef0f3; }
+      th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+      tr:hover td { background: #f9fafc; }
+      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+      .pill.draft { background: #eef0f3; color: var(--muted); }
+      .pill.scheduled { background: #fff7d6; color: #8a6500; }
+      .pill.sending { background: #d6e8ff; color: #1148a3; }
+      .pill.sent { background: #d4f4dc; color: var(--green); }
+      .pill.cancelled { background: #fde2e2; color: var(--red); }
+      .pill.tier { background: var(--gold); color: black; }
+      .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+      .toolbar .actions { display: flex; gap: 8px; }
+      .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 18px; background: var(--accent); color: white; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 1000; }
+      .toast.show { opacity: 1; }
+      .toast.error { background: var(--red); }
+      .toast.success { background: var(--green); }
+      .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+      .modal.active { display: flex; }
+      .modal .panel { width: min(560px, 100%); max-height: 90vh; overflow-y: auto; margin: 0; }
+      .empty { color: var(--muted); padding: 24px 0; text-align: center; font-size: 13px; }
+      .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; background: #eef0f3; color: var(--muted); }
+      .tier-bar { height: 8px; background: #eef0f3; border-radius: 4px; overflow: hidden; margin-top: 6px; }
+      .tier-bar > span { display: block; height: 100%; background: var(--gold); }
+      .login-wrap { max-width: 400px; margin: 80px auto; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div><span class="brand" id="tenantName">Admin</span> · Programa de Lealtad</div>
+      <div class="who" id="who" style="display:none">
+        <span id="whoEmail"></span>
+        <button id="logoutBtn">Salir</button>
+      </div>
+    </header>
+
+    <!-- LOGIN -->
+    <main id="loginView">
+      <div class="login-wrap">
+        <section class="panel">
+          <h2>Ingresar</h2>
+          <label>Tenant slug</label>
+          <input id="loginTenant" value="chui" />
+          <label>Email</label>
+          <input id="loginEmail" type="email" autocomplete="email" />
+          <label>Contraseña</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" />
+          <div style="margin-top:14px">
+            <button class="primary" id="loginBtn" style="width:100%">Entrar</button>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <!-- APP -->
+    <div id="appView" style="display:none">
+      <nav class="tabs" id="tabs">
+        <button data-tab="dashboard" class="active">Dashboard</button>
+        <button data-tab="customers">Clientes</button>
+        <button data-tab="campaigns">Campañas</button>
+        <button data-tab="tiers">Niveles</button>
+        <button data-tab="rewards">Premios</button>
+        <button data-tab="settings">Ajustes</button>
+      </nav>
+
+      <main>
+        <!-- DASHBOARD -->
+        <section data-view="dashboard">
+          <div class="panel">
+            <h2>KPIs · últimos 30 días</h2>
+            <div class="grid-3" id="kpiGrid"></div>
+          </div>
+          <div class="grid-2">
+            <div class="panel">
+              <h2>Distribución por nivel</h2>
+              <div id="tierDist"></div>
+            </div>
+            <div class="panel">
+              <h2>Top premios canjeados</h2>
+              <div id="topRewards"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CUSTOMERS -->
+        <section data-view="customers" style="display:none">
+          <div class="panel">
+            <div class="toolbar">
+              <h2 style="margin:0">Clientes</h2>
+            </div>
+            <input id="customerSearch" placeholder="Buscar por email, teléfono o nombre" />
+            <div id="customerList" style="margin-top: 10px"></div>
+          </div>
+          <div class="panel" id="customerDetail" style="display:none"></div>
+        </section>
+
+        <!-- CAMPAIGNS -->
+        <section data-view="campaigns" style="display:none">
+          <div class="panel">
+            <div class="toolbar">
+              <h2 style="margin:0">Campañas</h2>
+              <div class="actions">
+                <button class="primary" id="newCampaignBtn">Nueva campaña</button>
+              </div>
+            </div>
+            <div id="campaignList"></div>
+          </div>
+          <div class="panel" id="campaignDetail" style="display:none"></div>
+        </section>
+
+        <!-- TIERS -->
+        <section data-view="tiers" style="display:none">
+          <div class="panel">
+            <div class="toolbar">
+              <h2 style="margin:0">Niveles</h2>
+              <div class="actions">
+                <button class="primary" id="newTierBtn">Nuevo nivel</button>
+              </div>
+            </div>
+            <div id="tierList"></div>
+          </div>
+        </section>
+
+        <!-- REWARDS -->
+        <section data-view="rewards" style="display:none">
+          <div class="panel">
+            <div class="toolbar">
+              <h2 style="margin:0">Premios</h2>
+              <div class="actions">
+                <button class="primary" id="newRewardBtn">Nuevo premio</button>
+              </div>
+            </div>
+            <div id="rewardList"></div>
+          </div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section data-view="settings" style="display:none">
+          <div class="panel">
+            <h2>Marca</h2>
+            <label>Nombre</label>
+            <input id="setName" />
+            <div class="row">
+              <div>
+                <label>Color de marca</label>
+                <input id="setBrandColor" placeholder="#0F1B2D" />
+              </div>
+              <div>
+                <label>Moneda (ISO 4217)</label>
+                <input id="setCurrency" placeholder="USD" maxlength="3" />
+              </div>
+            </div>
+            <label>URL del logo (PNG transparente, 480×480 recomendado)</label>
+            <input id="setLogoUrl" placeholder="https://..." />
+            <div style="margin-top:14px">
+              <button class="primary" id="saveSettingsBtn">Guardar</button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- MODAL -->
+    <div class="modal" id="modal">
+      <section class="panel" id="modalContent"></section>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      // ============ STATE ============
+      const state = {
+        token: localStorage.getItem("admin_token") || null,
+        staff: JSON.parse(localStorage.getItem("admin_staff") || "null"),
+        tenant: null,
+        tiers: [],
+      };
+
+      // ============ API ============
+      async function api(path, opts = {}) {
+        const headers = { "content-type": "application/json", ...(opts.headers || {}) };
+        if (state.token) headers.authorization = "Bearer " + state.token;
+        const res = await fetch(path, { ...opts, headers });
+        if (res.status === 401) {
+          logout();
+          throw new Error("Sesión expirada");
+        }
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : null;
+        if (!res.ok) throw new Error((data && (data.message || data.error)) || res.statusText);
+        return data;
+      }
+
+      // ============ TOAST ============
+      let toastTimer;
+      function toast(msg, kind = "") {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.className = "toast show " + kind;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => (el.className = "toast " + kind), 2800);
+      }
+
+      // ============ MODAL ============
+      function openModal(html) {
+        document.getElementById("modalContent").innerHTML = html;
+        document.getElementById("modal").classList.add("active");
+      }
+      function closeModal() {
+        document.getElementById("modal").classList.remove("active");
+      }
+      document.getElementById("modal").addEventListener("click", (e) => {
+        if (e.target.id === "modal") closeModal();
+      });
+
+      // ============ AUTH ============
+      function showApp() {
+        document.getElementById("loginView").style.display = "none";
+        document.getElementById("appView").style.display = "block";
+        document.getElementById("who").style.display = "flex";
+        document.getElementById("whoEmail").textContent = state.staff?.email || "";
+        bootApp();
+      }
+      function showLogin() {
+        document.getElementById("loginView").style.display = "block";
+        document.getElementById("appView").style.display = "none";
+        document.getElementById("who").style.display = "none";
+      }
+      function logout() {
+        state.token = null;
+        state.staff = null;
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_staff");
+        showLogin();
+      }
+      document.getElementById("logoutBtn").addEventListener("click", logout);
+
+      document.getElementById("loginBtn").addEventListener("click", async () => {
+        const tenantSlug = document.getElementById("loginTenant").value.trim();
+        const email = document.getElementById("loginEmail").value.trim();
+        const password = document.getElementById("loginPassword").value;
+        try {
+          const res = await api("/v1/auth/staff/login", {
+            method: "POST",
+            body: JSON.stringify({ tenantSlug, email, password }),
+          });
+          state.token = res.token;
+          state.staff = { email, role: res.role, tenantId: res.tenantId };
+          localStorage.setItem("admin_token", res.token);
+          localStorage.setItem("admin_staff", JSON.stringify(state.staff));
+          showApp();
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      });
+
+      // ============ TABS ============
+      document.querySelectorAll("nav.tabs button").forEach((btn) => {
+        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+      });
+      function switchTab(name) {
+        document.querySelectorAll("nav.tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+        document.querySelectorAll("section[data-view]").forEach((s) => (s.style.display = s.dataset.view === name ? "block" : "none"));
+        const loaders = { dashboard: loadDashboard, customers: loadCustomers, campaigns: loadCampaigns, tiers: loadTiers, rewards: loadRewards, settings: loadSettings };
+        loaders[name]?.();
+      }
+
+      // ============ BOOT ============
+      async function bootApp() {
+        try {
+          const t = await api("/v1/admin/tenant");
+          state.tenant = t;
+          document.getElementById("tenantName").textContent = t.name;
+          state.tiers = await api("/v1/tiers");
+          loadDashboard();
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+
+      // ============ DASHBOARD ============
+      async function loadDashboard() {
+        try {
+          const s = await api("/v1/admin/stats");
+          const fmt = new Intl.NumberFormat("es-AR");
+          const money = (cents) => new Intl.NumberFormat("es-AR", { style: "currency", currency: state.tenant?.currency || "USD" }).format(cents / 100);
+          document.getElementById("kpiGrid").innerHTML = `
+            <div class="kpi"><div class="label">Puntos emitidos</div><div class="value">${fmt.format(s.totals.pointsIssued)}</div><div class="sub">${s.totals.earnTransactions} transacciones</div></div>
+            <div class="kpi"><div class="label">Puntos canjeados</div><div class="value">${fmt.format(s.totals.pointsRedeemed)}</div><div class="sub">${s.totals.redeemTransactions} canjes</div></div>
+            <div class="kpi"><div class="label">Ventas registradas</div><div class="value">${money(s.totals.spendCents)}</div><div class="sub">Cubre solo earn-eligible</div></div>
+          `;
+          const totalCards = s.tierDistribution.reduce((a, t) => a + t.cards, 0) || 1;
+          document.getElementById("tierDist").innerHTML = s.tierDistribution.length ? s.tierDistribution.map((t) => `
+            <div style="margin-bottom: 10px">
+              <div style="display:flex;justify-content:space-between;font-size:13px"><span>${t.name}</span><span><strong>${t.cards}</strong> · ${Math.round((t.cards / totalCards) * 100)}%</span></div>
+              <div class="tier-bar"><span style="width:${(t.cards / totalCards) * 100}%"></span></div>
+            </div>
+          `).join("") : `<div class="empty">Sin datos</div>`;
+          document.getElementById("topRewards").innerHTML = s.topRewards.length ? `<table><thead><tr><th>Premio</th><th style="text-align:right">Canjes</th></tr></thead><tbody>${s.topRewards.map((r) => `<tr><td>${r.name || "(sin nombre)"}</td><td style="text-align:right"><strong>${r.redemptions}</strong></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin canjes en los últimos 30 días</div>`;
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+
+      // ============ CUSTOMERS ============
+      let customerSearchTimer;
+      document.getElementById("customerSearch")?.addEventListener("input", () => {
+        clearTimeout(customerSearchTimer);
+        customerSearchTimer = setTimeout(loadCustomers, 250);
+      });
+      async function loadCustomers() {
+        const q = document.getElementById("customerSearch").value.trim();
+        try {
+          const list = await api("/v1/customers" + (q ? "?q=" + encodeURIComponent(q) : ""));
+          const el = document.getElementById("customerList");
+          el.innerHTML = list.length ? `<table><thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Alta</th></tr></thead><tbody>${list.map((c) => `<tr style="cursor:pointer" data-id="${c.id}"><td><strong>${[c.firstName, c.lastName].filter(Boolean).join(" ") || "—"}</strong></td><td>${c.email || "—"}</td><td>${c.phone || "—"}</td><td>${new Date(c.createdAt).toLocaleDateString()}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin resultados</div>`;
+          el.querySelectorAll("tr[data-id]").forEach((r) => r.addEventListener("click", () => showCustomer(r.dataset.id)));
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+      async function showCustomer(id) {
+        try {
+          const c = await api("/v1/customers/" + id);
+          const card = c.cards?.[0];
+          let txs = [];
+          if (card) {
+            const r = await api("/v1/admin/transactions?limit=20&customerId=" + id);
+            txs = r.items;
+          }
+          const el = document.getElementById("customerDetail");
+          el.style.display = "block";
+          el.innerHTML = `
+            <div class="toolbar"><h2 style="margin:0">${[c.firstName, c.lastName].filter(Boolean).join(" ") || "Cliente"}</h2><button class="ghost" id="closeCustomer">Cerrar</button></div>
+            <div class="grid-2">
+              <div>
+                <h3>Datos</h3>
+                <div>Email: <strong>${c.email || "—"}</strong></div>
+                <div>Teléfono: <strong>${c.phone || "—"}</strong></div>
+                <div>Alta: <strong>${new Date(c.createdAt).toLocaleString()}</strong></div>
+              </div>
+              <div>
+                <h3>Tarjeta</h3>
+                ${card ? `
+                  <div>Nivel: <span class="pill tier">${card.tier?.name || "?"}</span></div>
+                  <div>Puntos: <strong>${card.pointsBalance}</strong></div>
+                  <div>Serial: <code style="font-size:12px">${card.nfcSerial}</code></div>
+                ` : `<div class="empty">Sin tarjeta</div>`}
+              </div>
+            </div>
+            <h3>Últimas transacciones</h3>
+            ${txs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Puntos</th><th>Monto</th><th>Nota</th></tr></thead><tbody>${txs.map((t) => `<tr><td>${new Date(t.createdAt).toLocaleString()}</td><td><span class="badge">${t.kind}</span></td><td>${t.pointsDelta || ""}</td><td>${t.amountCents ? (t.amountCents / 100).toFixed(2) : ""}</td><td>${t.note || ""}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin transacciones</div>`}
+          `;
+          document.getElementById("closeCustomer").addEventListener("click", () => (el.style.display = "none"));
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+
+      // ============ CAMPAIGNS ============
+      async function loadCampaigns() {
+        try {
+          const list = await api("/v1/campaigns");
+          const el = document.getElementById("campaignList");
+          el.innerHTML = list.length ? `<table><thead><tr><th>Título</th><th>Mensaje</th><th>Niveles</th><th>Estado</th><th>Creada</th><th></th></tr></thead><tbody>${list.map((c) => `
+            <tr data-id="${c.id}">
+              <td><strong>${escapeHtml(c.title)}</strong></td>
+              <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.message)}</td>
+              <td>${c.targetTierRanks?.length ? c.targetTierRanks.map((r) => `<span class="badge">${tierName(r)}</span>`).join(" ") : "Todos"}</td>
+              <td><span class="pill ${c.status.toLowerCase()}">${c.status}</span></td>
+              <td>${new Date(c.createdAt).toLocaleDateString()}</td>
+              <td><button class="ghost" data-act="open">Abrir</button></td>
+            </tr>`).join("")}</tbody></table>` : `<div class="empty">No hay campañas todavía</div>`;
+          el.querySelectorAll("button[data-act='open']").forEach((b) => b.addEventListener("click", (e) => {
+            e.stopPropagation();
+            showCampaign(b.closest("tr").dataset.id);
+          }));
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+
+      function tierName(rank) {
+        return state.tiers.find((t) => t.rank === rank)?.name || `rank ${rank}`;
+      }
+
+      function escapeHtml(s) {
+        return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      document.getElementById("newCampaignBtn").addEventListener("click", () => openCampaignForm());
+
+      function openCampaignForm(existing) {
+        const isEdit = !!existing;
+        const tierOpts = state.tiers.map((t) => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--fg);margin:0"><input type="checkbox" value="${t.rank}" ${existing?.targetTierRanks?.includes(t.rank) ? "checked" : ""} style="width:auto"> ${t.name}</label>`).join("");
+        openModal(`
+          <h2>${isEdit ? "Editar campaña" : "Nueva campaña"}</h2>
+          <label>Título</label>
+          <input id="cTitle" value="${escapeHtml(existing?.title || "")}" />
+          <label>Mensaje (max 280)</label>
+          <textarea id="cMessage" maxlength="280">${escapeHtml(existing?.message || "")}</textarea>
+          <label>Niveles destino (vacío = todos)</label>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;padding:8px 0">${tierOpts}</div>
+          <div class="row" style="margin-top:14px">
+            <button class="secondary" id="cCancel">Cancelar</button>
+            <button class="primary" id="cSave">Guardar</button>
+          </div>
+        `);
+        document.getElementById("cCancel").addEventListener("click", closeModal);
+        document.getElementById("cSave").addEventListener("click", async () => {
+          const title = document.getElementById("cTitle").value.trim();
+          const message = document.getElementById("cMessage").value.trim();
+          const ranks = Array.from(document.querySelectorAll("#modal input[type=checkbox]:checked")).map((i) => Number(i.value));
+          if (!title || !message) return toast("Falta título o mensaje", "error");
+          try {
+            if (isEdit) {
+              await api("/v1/campaigns/" + existing.id, { method: "PATCH", body: JSON.stringify({ title, message, targetTierRanks: ranks }) });
+            } else {
+              await api("/v1/campaigns", { method: "POST", body: JSON.stringify({ title, message, targetTierRanks: ranks }) });
+            }
+            toast(isEdit ? "Actualizada" : "Creada", "success");
+            closeModal();
+            loadCampaigns();
+          } catch (e) {
+            toast(e.message, "error");
+          }
+        });
+      }
+
+      async function showCampaign(id) {
+        try {
+          const list = await api("/v1/campaigns");
+          const c = list.find((x) => x.id === id);
+          if (!c) return;
+          const deliveries = c.status !== "DRAFT" ? await api("/v1/campaigns/" + id + "/deliveries") : [];
+          const el = document.getElementById("campaignDetail");
+          el.style.display = "block";
+          el.innerHTML = `
+            <div class="toolbar"><h2 style="margin:0">${escapeHtml(c.title)}</h2><button class="ghost" id="closeCampaign">Cerrar</button></div>
+            <div>${escapeHtml(c.message)}</div>
+            <div style="margin-top: 8px"><span class="pill ${c.status.toLowerCase()}">${c.status}</span> · <span class="badge">${c.targetTierRanks?.length ? c.targetTierRanks.map(tierName).join(", ") : "Todos los niveles"}</span></div>
+            <div class="row" style="margin-top:14px">
+              ${(c.status === "DRAFT" || c.status === "SCHEDULED") ? `<button class="primary" id="sendBtn">Enviar ahora</button><button class="secondary" id="editBtn">Editar</button><button class="danger" id="delBtn">Eliminar</button>` : ""}
+            </div>
+            ${deliveries.length ? `
+              <h3>Entregas (${deliveries.length})</h3>
+              <table><thead><tr><th>Estado</th><th>Card</th><th>Enviada</th><th>Error</th></tr></thead><tbody>${deliveries.slice(0, 100).map((d) => `<tr><td><span class="pill ${d.status.toLowerCase() === "sent" ? "sent" : d.status.toLowerCase() === "failed" ? "cancelled" : "draft"}">${d.status}</span></td><td><code style="font-size:11px">${d.cardId.slice(0, 10)}…</code></td><td>${d.sentAt ? new Date(d.sentAt).toLocaleString() : "—"}</td><td style="color:var(--red)">${d.error || ""}</td></tr>`).join("")}</tbody></table>
+            ` : ""}
+          `;
+          document.getElementById("closeCampaign").addEventListener("click", () => (el.style.display = "none"));
+          document.getElementById("sendBtn")?.addEventListener("click", async () => {
+            if (!confirm("¿Enviar la campaña ahora?")) return;
+            try {
+              await api("/v1/campaigns/" + id + "/send", { method: "POST" });
+              toast("Enviada", "success");
+              loadCampaigns();
+              showCampaign(id);
+            } catch (e) {
+              toast(e.message, "error");
+            }
+          });
+          document.getElementById("editBtn")?.addEventListener("click", () => openCampaignForm(c));
+          document.getElementById("delBtn")?.addEventListener("click", async () => {
+            if (!confirm("¿Eliminar esta campaña?")) return;
+            try {
+              await api("/v1/campaigns/" + id, { method: "DELETE" });
+              toast("Eliminada", "success");
+              el.style.display = "none";
+              loadCampaigns();
+            } catch (e) {
+              toast(e.message, "error");
+            }
+          });
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+
+      // ============ TIERS ============
+      async function loadTiers() {
+        try {
+          const list = await api("/v1/tiers");
+          state.tiers = list;
+          const el = document.getElementById("tierList");
+          el.innerHTML = list.length ? `<table><thead><tr><th>#</th><th>Nombre</th><th>Calificación</th><th>Descuento</th><th>Multiplier</th><th>Color</th><th></th></tr></thead><tbody>${list.map((t) => `
+            <tr data-rank="${t.rank}">
+              <td>${t.rank}</td>
+              <td><strong>${escapeHtml(t.name)}</strong></td>
+              <td>${t.qualifyPoints} pts · ${(t.qualifySpend / 100).toLocaleString()} ${state.tenant?.currency || ""}</td>
+              <td>${t.discountPct}%</td>
+              <td>×${t.pointsMultiplier}</td>
+              <td><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${t.color};border:1px solid var(--border);vertical-align:middle"></span> <code style="font-size:11px">${t.color}</code></td>
+              <td><button class="ghost" data-act="edit">Editar</button> <button class="ghost" data-act="del">×</button></td>
+            </tr>`).join("")}</tbody></table>` : `<div class="empty">No hay niveles</div>`;
+          el.querySelectorAll("button[data-act='edit']").forEach((b) => b.addEventListener("click", () => {
+            const rank = Number(b.closest("tr").dataset.rank);
+            openTierForm(list.find((t) => t.rank === rank));
+          }));
+          el.querySelectorAll("button[data-act='del']").forEach((b) => b.addEventListener("click", async () => {
+            const rank = b.closest("tr").dataset.rank;
+            if (!confirm(`¿Eliminar nivel ${rank}?`)) return;
+            try { await api("/v1/tiers/" + rank, { method: "DELETE" }); toast("Eliminado", "success"); loadTiers(); }
+            catch (e) { toast(e.message, "error"); }
+          }));
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+      document.getElementById("newTierBtn").addEventListener("click", () => openTierForm());
+      function openTierForm(existing) {
+        openModal(`
+          <h2>${existing ? "Editar nivel" : "Nuevo nivel"}</h2>
+          <div class="row">
+            <div><label>Rank</label><input id="tRank" type="number" min="1" value="${existing?.rank ?? ""}" ${existing ? "readonly" : ""} /></div>
+            <div><label>Nombre</label><input id="tName" value="${escapeHtml(existing?.name || "")}" /></div>
+          </div>
+          <div class="row">
+            <div><label>Puntos para calificar</label><input id="tQp" type="number" min="0" value="${existing?.qualifyPoints ?? 0}" /></div>
+            <div><label>Gasto para calificar (cents)</label><input id="tQs" type="number" min="0" value="${existing?.qualifySpend ?? 0}" /></div>
+          </div>
+          <div class="row">
+            <div><label>Descuento %</label><input id="tDp" type="number" min="0" max="100" value="${existing?.discountPct ?? 0}" /></div>
+            <div><label>Multiplier de puntos</label><input id="tMul" type="number" step="0.1" min="0" value="${existing?.pointsMultiplier ?? 1}" /></div>
+            <div><label>Color</label><input id="tColor" type="color" value="${existing?.color || "#C0C0C0"}" /></div>
+          </div>
+          <div class="row" style="margin-top:14px"><button class="secondary" id="tCancel">Cancelar</button><button class="primary" id="tSave">Guardar</button></div>
+        `);
+        document.getElementById("tCancel").addEventListener("click", closeModal);
+        document.getElementById("tSave").addEventListener("click", async () => {
+          const body = {
+            rank: Number(document.getElementById("tRank").value),
+            name: document.getElementById("tName").value.trim(),
+            qualifyPoints: Number(document.getElementById("tQp").value),
+            qualifySpend: Number(document.getElementById("tQs").value),
+            discountPct: Number(document.getElementById("tDp").value),
+            pointsMultiplier: Number(document.getElementById("tMul").value),
+            color: document.getElementById("tColor").value,
+          };
+          try {
+            await api("/v1/tiers", { method: "POST", body: JSON.stringify(body) });
+            toast("Guardado", "success");
+            closeModal();
+            loadTiers();
+          } catch (e) {
+            toast(e.message, "error");
+          }
+        });
+      }
+
+      // ============ REWARDS ============
+      async function loadRewards() {
+        try {
+          const list = await api("/v1/rewards");
+          const el = document.getElementById("rewardList");
+          el.innerHTML = list.length ? `<table><thead><tr><th>Nombre</th><th>Costo</th><th>Min nivel</th><th>Activo</th><th></th></tr></thead><tbody>${list.map((r) => `
+            <tr data-id="${r.id}">
+              <td><strong>${escapeHtml(r.name)}</strong>${r.description ? `<br><span style="font-size:12px;color:var(--muted)">${escapeHtml(r.description)}</span>` : ""}</td>
+              <td>${r.pointsCost} pts</td>
+              <td>${r.minTierRank || "—"}</td>
+              <td>${r.active ? '<span class="pill sent">activo</span>' : '<span class="pill cancelled">inactivo</span>'}</td>
+              <td><button class="ghost" data-act="edit">Editar</button> <button class="ghost" data-act="del">×</button></td>
+            </tr>`).join("")}</tbody></table>` : `<div class="empty">Aún no hay premios</div>`;
+          el.querySelectorAll("button[data-act='edit']").forEach((b) => b.addEventListener("click", () => {
+            const id = b.closest("tr").dataset.id;
+            openRewardForm(list.find((r) => r.id === id));
+          }));
+          el.querySelectorAll("button[data-act='del']").forEach((b) => b.addEventListener("click", async () => {
+            const id = b.closest("tr").dataset.id;
+            if (!confirm("¿Eliminar premio?")) return;
+            try { await api("/v1/rewards/" + id, { method: "DELETE" }); toast("Eliminado", "success"); loadRewards(); }
+            catch (e) { toast(e.message, "error"); }
+          }));
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+      document.getElementById("newRewardBtn").addEventListener("click", () => openRewardForm());
+      function openRewardForm(existing) {
+        const isEdit = !!existing;
+        openModal(`
+          <h2>${isEdit ? "Editar premio" : "Nuevo premio"}</h2>
+          <label>Nombre</label>
+          <input id="rName" value="${escapeHtml(existing?.name || "")}" />
+          <label>Descripción</label>
+          <textarea id="rDesc">${escapeHtml(existing?.description || "")}</textarea>
+          <div class="row">
+            <div><label>Costo (puntos)</label><input id="rCost" type="number" min="1" value="${existing?.pointsCost ?? 100}" /></div>
+            <div><label>Nivel mínimo (rank)</label><input id="rMin" type="number" min="0" value="${existing?.minTierRank ?? 0}" /></div>
+          </div>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:10px"><input type="checkbox" id="rActive" ${existing?.active !== false ? "checked" : ""} style="width:auto"> Activo</label>
+          <div class="row" style="margin-top:14px"><button class="secondary" id="rCancel">Cancelar</button><button class="primary" id="rSave">Guardar</button></div>
+        `);
+        document.getElementById("rCancel").addEventListener("click", closeModal);
+        document.getElementById("rSave").addEventListener("click", async () => {
+          const body = {
+            name: document.getElementById("rName").value.trim(),
+            description: document.getElementById("rDesc").value.trim() || undefined,
+            pointsCost: Number(document.getElementById("rCost").value),
+            minTierRank: Number(document.getElementById("rMin").value),
+            active: document.getElementById("rActive").checked,
+          };
+          try {
+            if (isEdit) await api("/v1/rewards/" + existing.id, { method: "PATCH", body: JSON.stringify(body) });
+            else await api("/v1/rewards", { method: "POST", body: JSON.stringify(body) });
+            toast("Guardado", "success");
+            closeModal();
+            loadRewards();
+          } catch (e) {
+            toast(e.message, "error");
+          }
+        });
+      }
+
+      // ============ SETTINGS ============
+      async function loadSettings() {
+        try {
+          const t = await api("/v1/admin/tenant");
+          state.tenant = t;
+          document.getElementById("setName").value = t.name || "";
+          document.getElementById("setBrandColor").value = t.brandColor || "";
+          document.getElementById("setCurrency").value = t.currency || "USD";
+          document.getElementById("setLogoUrl").value = t.logoUrl || "";
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      }
+      document.getElementById("saveSettingsBtn").addEventListener("click", async () => {
+        const body = {
+          name: document.getElementById("setName").value.trim(),
+          brandColor: document.getElementById("setBrandColor").value.trim(),
+          currency: document.getElementById("setCurrency").value.trim(),
+          logoUrl: document.getElementById("setLogoUrl").value.trim() || null,
+        };
+        try {
+          await api("/v1/admin/tenant", { method: "PATCH", body: JSON.stringify(body) });
+          toast("Guardado", "success");
+          bootApp();
+        } catch (e) {
+          toast(e.message, "error");
+        }
+      });
+
+      // ============ INIT ============
+      if (state.token) showApp();
+      else showLogin();
+    </script>
+  </body>
+</html>
