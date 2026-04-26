@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireRole, requireStaff } from "../middleware/auth.js";
 import { createCampaign, sendCampaign } from "../services/campaigns.js";
+import { Conflict } from "../lib/errors.js";
 
 const createBody = z.object({
   title: z.string().min(1),
@@ -11,6 +12,13 @@ const createBody = z.object({
   // tier ranks (e.g. [2,3] for Gold + Platinum).
   targetTierRanks: z.array(z.number().int().positive()).default([]),
   scheduledFor: z.string().datetime().optional(),
+});
+
+const patchBody = z.object({
+  title: z.string().min(1).optional(),
+  message: z.string().min(1).max(280).optional(),
+  targetTierRanks: z.array(z.number().int().positive()).optional(),
+  scheduledFor: z.string().datetime().nullable().optional(),
 });
 
 export async function campaignRoutes(app: FastifyInstance) {
@@ -58,4 +66,56 @@ export async function campaignRoutes(app: FastifyInstance) {
       take: 500,
     });
   });
+
+  // Edit / cancel only while still a draft. Once SENDING/SENT we keep the
+  // record immutable so deliveries stay auditable.
+  app.patch(
+    "/v1/campaigns/:id",
+    { onRequest: [requireRole("OWNER", "MANAGER")] },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const tenantId = req.staff!.tenantId;
+      const body = patchBody.parse(req.body);
+      const existing = await prisma.campaign.findFirstOrThrow({
+        where: { id, tenantId },
+      });
+      if (existing.status !== "DRAFT" && existing.status !== "SCHEDULED") {
+        throw Conflict(`Cannot edit campaign in status ${existing.status}`);
+      }
+      return prisma.campaign.update({
+        where: { id },
+        data: {
+          ...(body.title !== undefined ? { title: body.title } : {}),
+          ...(body.message !== undefined ? { message: body.message } : {}),
+          ...(body.targetTierRanks !== undefined
+            ? { targetTierRanks: body.targetTierRanks }
+            : {}),
+          ...(body.scheduledFor !== undefined
+            ? {
+                scheduledFor: body.scheduledFor
+                  ? new Date(body.scheduledFor)
+                  : null,
+              }
+            : {}),
+        },
+      });
+    },
+  );
+
+  app.delete(
+    "/v1/campaigns/:id",
+    { onRequest: [requireRole("OWNER", "MANAGER")] },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const tenantId = req.staff!.tenantId;
+      const existing = await prisma.campaign.findFirstOrThrow({
+        where: { id, tenantId },
+      });
+      if (existing.status === "SENT" || existing.status === "SENDING") {
+        throw Conflict(`Cannot delete campaign in status ${existing.status}`);
+      }
+      await prisma.campaign.delete({ where: { id } });
+      return { ok: true };
+    },
+  );
 }

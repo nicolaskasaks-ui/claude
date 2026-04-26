@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { requireRole, requireStaff } from "../middleware/auth.js";
+import { Conflict } from "../lib/errors.js";
 
 const upsertTierBody = z.object({
   name: z.string().min(1),
@@ -33,6 +34,33 @@ export async function tierRoutes(app: FastifyInstance) {
         update: body,
         create: { ...body, tenantId: req.staff!.tenantId },
       });
+    },
+  );
+
+  // Delete a tier. Refuses if any cards still belong to it — staff has to
+  // reassign first by editing the card or running a migration script.
+  app.delete(
+    "/v1/tiers/:rank",
+    { onRequest: [requireRole("OWNER")] },
+    async (req) => {
+      const rank = Number((req.params as { rank: string }).rank);
+      const tenantId = req.staff!.tenantId;
+      const tier = await prisma.tier.findUnique({
+        where: { tenantId_rank: { tenantId, rank } },
+      });
+      if (!tier) {
+        return { ok: true, deleted: false };
+      }
+      const cardCount = await prisma.loyaltyCard.count({
+        where: { tierId: tier.id },
+      });
+      if (cardCount > 0) {
+        throw Conflict(
+          `Tier "${tier.name}" still has ${cardCount} card(s); reassign before deleting.`,
+        );
+      }
+      await prisma.tier.delete({ where: { id: tier.id } });
+      return { ok: true, deleted: true };
     },
   );
 }

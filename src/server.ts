@@ -21,6 +21,7 @@ import { terminalAdminRoutes } from "./routes/terminals-admin.js";
 import { campaignRoutes } from "./routes/campaigns.js";
 import { walletRoutes } from "./routes/wallet.js";
 import { publicRoutes, customerLookupRoutes } from "./routes/public.js";
+import { adminRoutes } from "./routes/admin.js";
 import { startWalletPushWorker } from "./workers/wallet-push.js";
 
 export function buildServer() {
@@ -62,6 +63,7 @@ export function buildServer() {
   app.register(terminalAdminRoutes);
   app.register(campaignRoutes);
   app.register(walletRoutes);
+  app.register(adminRoutes);
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
