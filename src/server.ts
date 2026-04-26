@@ -85,7 +85,11 @@ export function buildServer() {
 
 async function main() {
   const app = buildServer();
-  if (env.RUN_WORKER_INLINE) {
+  // The inline worker is opt-in (RUN_WORKER_INLINE=true) AND requires Redis.
+  // On Vercel we run without Redis and use direct fire-and-forget pushes
+  // from the request handler instead.
+  const hasRedis = !!process.env.REDIS_URL;
+  if (env.RUN_WORKER_INLINE && hasRedis) {
     startWalletPushWorker();
     app.log.info("[wallet-push:worker] running inline with HTTP server");
   }

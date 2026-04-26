@@ -1,0 +1,22 @@
+node_modules
+.git
+.env
+.env.local
+.env.*.local
+.DS_Store
+.vscode
+.idea
+.claude
+coverage
+.tsbuildinfo
+*.log
+docker-compose.yml
+Dockerfile
+fly.toml
+
+# Sensitive material — Vercel reads secrets from env, not files
+certs/
+*.pem
+*.p12
+*.key
+google-wallet-sa.json
