@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "prisma generate && tsc -p tsconfig.json",
+  "buildCommand": "npx prisma generate && npx tsc -p tsconfig.json",
   "outputDirectory": "public",
   "functions": {
     "api/[[...slug]].ts": {
