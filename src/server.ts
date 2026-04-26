@@ -77,7 +77,11 @@ export function buildServer() {
       if (err.code === "P2025") return reply.code(404).send({ error: "not_found" });
     }
     req.log.error(err);
-    return reply.code(500).send({ error: "internal_server_error" });
+    return reply.code(500).send({
+      error: "internal_server_error",
+      message: err.message,
+      ...(env.NODE_ENV !== "production" && err.stack ? { stack: err.stack } : {}),
+    });
   });
 
   return app;
