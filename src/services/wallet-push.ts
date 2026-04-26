@@ -3,6 +3,31 @@ import type { PassUpdateReason } from "../queues/wallet-push.js";
 import { pushApplePassUpdate } from "./apns.js";
 import { pushGooglePassUpdate } from "./wallet-google.js";
 
+// Defer background work in a way that survives the surrounding request:
+//   - On Vercel serverless, use waitUntil so the function isn't terminated
+//     when the response is sent.
+//   - In long-running Node (local dev, traditional VM), setImmediate is fine.
+const IS_VERCEL = !!process.env.VERCEL;
+
+async function deferBackground(work: () => Promise<void>): Promise<void> {
+  if (IS_VERCEL) {
+    try {
+      const mod = await import("@vercel/functions");
+      mod.waitUntil(work());
+      return;
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("[wallet-push] waitUntil unavailable, falling back", err);
+    }
+  }
+  setImmediate(() => {
+    work().catch((err) => {
+      // eslint-disable-next-line no-console
+      console.error("[wallet-push] background failed", err);
+    });
+  });
+}
+
 // Wallet pass updates double as our push channel: changing any field on a
 // pass causes Apple Wallet (via APNs targeted at the device tokens we
 // captured during registration) and Google Wallet (via the Wallet Objects
@@ -50,7 +75,7 @@ export async function enqueuePassUpdate(
   // open a connection. The import happens once per process the first time
   // a queue-mode push is needed.
   if (HAS_REDIS) {
-    setImmediate(async () => {
+    await deferBackground(async () => {
       try {
         const { walletPushQueue } = await import("../queues/wallet-push.js");
         await walletPushQueue().add(
@@ -65,12 +90,7 @@ export async function enqueuePassUpdate(
       }
     });
   } else {
-    setImmediate(() => {
-      pushDirect(cardId, meta).catch((err) => {
-        // eslint-disable-next-line no-console
-        console.error("[wallet-push] direct push failed", err);
-      });
-    });
+    await deferBackground(() => pushDirect(cardId, meta));
   }
 
   if (process.env.NODE_ENV !== "production") {
