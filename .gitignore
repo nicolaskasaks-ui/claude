@@ -17,5 +17,6 @@ google-wallet-sa.json
 # Build / IDE
 .vscode/
 .idea/
+.claude/
 coverage/
 .tsbuildinfo
