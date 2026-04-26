@@ -37,7 +37,10 @@ export async function walletRoutes(app: FastifyInstance) {
       publicHost: publicHost(req),
     });
     reply.header("Content-Type", "application/vnd.apple.pkpass");
-    reply.header("Content-Disposition", `attachment; filename="${card.id}.pkpass"`);
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename="${card.tenant.slug}-friends-card.pkpass"`,
+    );
     return reply.send(buf);
   });
 
@@ -71,7 +74,10 @@ export async function walletRoutes(app: FastifyInstance) {
       publicHost: publicHost(req),
     });
     reply.header("Content-Type", "application/vnd.apple.pkpass");
-    reply.header("Content-Disposition", `attachment; filename="${giftCard.id}.pkpass"`);
+    reply.header(
+      "Content-Disposition",
+      `attachment; filename="${giftCard.tenant.slug}-gift-card.pkpass"`,
+    );
     return reply.send(buf);
   });
 
