@@ -1,7 +1,7 @@
 import { connect, type ClientHttp2Session } from "node:http2";
-import { readFile } from "node:fs/promises";
 import { env } from "../lib/env.js";
 import { prisma } from "../lib/prisma.js";
+import { loadSecretBuffer } from "../lib/secret-loader.js";
 
 // Apple PassKit push notifications.
 //
@@ -24,17 +24,16 @@ let sessionPromise: Promise<ClientHttp2Session> | null = null;
 async function getSession(): Promise<ClientHttp2Session> {
   if (sessionPromise) return sessionPromise;
   sessionPromise = (async () => {
-    if (
-      !env.APPLE_PASS_CERT_PATH ||
-      !env.APPLE_PASS_KEY_PATH ||
-      !env.APPLE_PASS_TYPE_IDENTIFIER
-    ) {
-      throw new Error("APNs not configured: missing Apple Pass cert/key/type id");
+    if (!env.APPLE_PASS_TYPE_IDENTIFIER) {
+      throw new Error("APNs not configured: missing Apple Pass type id");
     }
     const [cert, key] = await Promise.all([
-      readFile(env.APPLE_PASS_CERT_PATH),
-      readFile(env.APPLE_PASS_KEY_PATH),
+      loadSecretBuffer({ b64: env.APPLE_PASS_CERT_B64, path: env.APPLE_PASS_CERT_PATH, label: "APPLE_PASS_CERT" }),
+      loadSecretBuffer({ b64: env.APPLE_PASS_KEY_B64, path: env.APPLE_PASS_KEY_PATH, label: "APPLE_PASS_KEY" }),
     ]);
+    if (!cert || !key) {
+      throw new Error("APNs not configured: missing Apple Pass cert/key");
+    }
     const host = env.NODE_ENV === "production" ? APNS_HOST_PROD : APNS_HOST_DEV;
     const session = connect(`https://${host}:443`, {
       cert,

@@ -1,7 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { SignJWT, importPKCS8 } from "jose";
 import { env } from "../lib/env.js";
 import { prisma } from "../lib/prisma.js";
+import { loadSecretString } from "../lib/secret-loader.js";
 import type { GiftCard, LoyaltyCard, Tenant, Tier } from "@prisma/client";
 import { signNfcToken } from "./../lib/nfc-token.js";
 
@@ -21,10 +21,12 @@ type ServiceAccount = {
 };
 
 async function loadServiceAccount(): Promise<ServiceAccount> {
-  if (!env.GOOGLE_WALLET_SERVICE_ACCOUNT_PATH) {
-    throw new Error("Google Wallet service account not configured");
-  }
-  const raw = await readFile(env.GOOGLE_WALLET_SERVICE_ACCOUNT_PATH, "utf8");
+  const raw = await loadSecretString({
+    b64: env.GOOGLE_WALLET_SA_JSON_B64,
+    path: env.GOOGLE_WALLET_SERVICE_ACCOUNT_PATH,
+    label: "GOOGLE_WALLET service account",
+  });
+  if (!raw) throw new Error("Google Wallet service account not configured");
   return JSON.parse(raw) as ServiceAccount;
 }
 
@@ -185,7 +187,9 @@ export async function pushGooglePassUpdate(
   cardId: string,
   message?: string,
 ): Promise<void> {
-  if (!env.GOOGLE_WALLET_ISSUER_ID || !env.GOOGLE_WALLET_SERVICE_ACCOUNT_PATH) {
+  const hasCreds =
+    !!env.GOOGLE_WALLET_SERVICE_ACCOUNT_PATH || !!env.GOOGLE_WALLET_SA_JSON_B64;
+  if (!env.GOOGLE_WALLET_ISSUER_ID || !hasCreds) {
     if (process.env.NODE_ENV !== "production") {
       // eslint-disable-next-line no-console
       console.log(`[google-wallet] not configured, skipping push card=${cardId}`);

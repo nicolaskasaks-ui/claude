@@ -1,8 +1,7 @@
-import { readFile } from "node:fs/promises";
 import { PKPass } from "passkit-generator";
 import type { GiftCard, LoyaltyCard, Tenant, Tier } from "@prisma/client";
 import { env } from "../lib/env.js";
-import { signNfcToken } from "../lib/nfc-token.js";
+import { loadSecretBuffer } from "../lib/secret-loader.js";
 
 // Generates an Apple Wallet (.pkpass) bundle for either a loyalty card or a
 // gift card. The pass embeds:
@@ -16,20 +15,17 @@ import { signNfcToken } from "../lib/nfc-token.js";
 // the function throws — wallet generation is intentionally a hard dependency.
 
 async function loadCerts() {
-  if (
-    !env.APPLE_PASS_TYPE_IDENTIFIER ||
-    !env.APPLE_TEAM_IDENTIFIER ||
-    !env.APPLE_PASS_CERT_PATH ||
-    !env.APPLE_PASS_KEY_PATH ||
-    !env.APPLE_WWDR_CERT_PATH
-  ) {
+  if (!env.APPLE_PASS_TYPE_IDENTIFIER || !env.APPLE_TEAM_IDENTIFIER) {
     throw new Error("Apple Wallet certs are not configured");
   }
   const [signerCert, signerKey, wwdr] = await Promise.all([
-    readFile(env.APPLE_PASS_CERT_PATH),
-    readFile(env.APPLE_PASS_KEY_PATH),
-    readFile(env.APPLE_WWDR_CERT_PATH),
+    loadSecretBuffer({ b64: env.APPLE_PASS_CERT_B64, path: env.APPLE_PASS_CERT_PATH, label: "APPLE_PASS_CERT" }),
+    loadSecretBuffer({ b64: env.APPLE_PASS_KEY_B64, path: env.APPLE_PASS_KEY_PATH, label: "APPLE_PASS_KEY" }),
+    loadSecretBuffer({ b64: env.APPLE_WWDR_CERT_B64, path: env.APPLE_WWDR_CERT_PATH, label: "APPLE_WWDR_CERT" }),
   ]);
+  if (!signerCert || !signerKey || !wwdr) {
+    throw new Error("Apple Wallet certs are not configured");
+  }
   return {
     signerCert,
     signerKey,
@@ -50,11 +46,6 @@ export async function buildLoyaltyPass(args: {
   publicHost: string;
 }): Promise<Buffer> {
   const certs = await loadCerts();
-  const nfcMessage = await signNfcToken({
-    kind: "loyalty",
-    tenantId: args.tenant.id,
-    serial: args.card.nfcSerial,
-  });
 
   const pass = new PKPass({}, certs, {
     formatVersion: 1,
@@ -68,26 +59,25 @@ export async function buildLoyaltyPass(args: {
     labelColor: "rgb(255,255,255)",
     webServiceURL: `${args.publicHost}/v1/wallet/apple`,
     authenticationToken: args.card.id, // simple per-card token; Apple requires >=16 chars
-    storeCard: {
-      headerFields: [{ key: "tier", label: "Nivel", value: args.tier.name }],
-      primaryFields: [
-        { key: "points", label: "Puntos", value: args.card.pointsBalance },
-      ],
-      secondaryFields: [
-        { key: "name", label: "Miembro", value: args.customerName },
-      ],
-      auxiliaryFields: [
-        { key: "discount", label: "Descuento", value: `${args.tier.discountPct}%` },
-      ],
-      backFields: [
-        { key: "id", label: "ID", value: args.card.nfcSerial },
-        { key: "terms", label: "Condiciones", value: "Programa sujeto a cambios." },
-      ],
-    },
   });
 
+  // Pass type and pass-type-specific fields are set after construction in
+  // passkit-generator v3 (the constructor only takes top-level pass.json).
+  pass.type = "storeCard";
+  pass.headerFields.push({ key: "tier", label: "Nivel", value: args.tier.name });
+  pass.primaryFields.push({ key: "points", label: "Puntos", value: args.card.pointsBalance });
+  pass.secondaryFields.push({ key: "name", label: "Miembro", value: args.customerName });
+  pass.auxiliaryFields.push({ key: "discount", label: "Descuento", value: `${args.tier.discountPct}%` });
+  pass.backFields.push(
+    { key: "id", label: "ID", value: args.card.nfcSerial },
+    { key: "terms", label: "Condiciones", value: "Programa sujeto a cambios." },
+  );
+
   pass.setBarcodes({ message: args.card.nfcSerial, format: "PKBarcodeFormatQR" });
-  pass.setNFC({ message: nfcMessage, encryptionPublicKey: undefined });
+  // NFC tap (Apple VAS) is intentionally not configured here. VAS approval
+  // is a separate Apple workflow and requires an encryption public key. Until
+  // that lands, cards work as QR only — re-enable setNFC once we have the
+  // VAS Merchant Public Key and feed it via env.
 
   return pass.getAsBuffer();
 }
@@ -98,11 +88,6 @@ export async function buildGiftPass(args: {
   publicHost: string;
 }): Promise<Buffer> {
   const certs = await loadCerts();
-  const nfcMessage = await signNfcToken({
-    kind: "gift",
-    tenantId: args.tenant.id,
-    serial: args.giftCard.nfcSerial,
-  });
 
   const pass = new PKPass({}, certs, {
     formatVersion: 1,
@@ -113,25 +98,21 @@ export async function buildGiftPass(args: {
     description: `${args.tenant.name} Gift Card`,
     foregroundColor: "rgb(255,255,255)",
     backgroundColor: hexToRgb(args.tenant.brandColor),
-    storeCard: {
-      headerFields: [{ key: "type", label: "Tipo", value: "Gift Card" }],
-      primaryFields: [
-        {
-          key: "balance",
-          label: "Saldo",
-          value: dollars(args.giftCard.balance, args.tenant.currency),
-        },
-      ],
-      secondaryFields: [
-        { key: "code", label: "Código", value: args.giftCard.code },
-      ],
-    },
   });
 
+  pass.type = "storeCard";
+  pass.headerFields.push({ key: "type", label: "Tipo", value: "Gift Card" });
+  pass.primaryFields.push({
+    key: "balance",
+    label: "Saldo",
+    value: dollars(args.giftCard.balance, args.tenant.currency),
+  });
+  pass.secondaryFields.push({ key: "code", label: "Código", value: args.giftCard.code });
+
   // Use the opaque nfcSerial (not the human code) so the QR encodes the same
-  // identifier the till would receive over an NFC tap with VAS.
+  // identifier the till would receive over a future NFC tap with VAS.
   pass.setBarcodes({ message: args.giftCard.nfcSerial, format: "PKBarcodeFormatQR" });
-  pass.setNFC({ message: nfcMessage, encryptionPublicKey: undefined });
+  // setNFC is intentionally omitted — see buildLoyaltyPass for context.
 
   return pass.getAsBuffer();
 }

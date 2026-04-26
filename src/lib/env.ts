@@ -20,13 +20,20 @@ const schema = z.object({
 
   APPLE_PASS_TYPE_IDENTIFIER: z.string().optional(),
   APPLE_TEAM_IDENTIFIER: z.string().optional(),
+  // Either set the *_PATH (dev: file on disk) or *_B64 (prod: base64-encoded
+  // contents in an env var, preferred for hosted platforms like Fly.io
+  // where staging cert files on disk is awkward).
   APPLE_PASS_CERT_PATH: z.string().optional(),
+  APPLE_PASS_CERT_B64: z.string().optional(),
   APPLE_PASS_KEY_PATH: z.string().optional(),
+  APPLE_PASS_KEY_B64: z.string().optional(),
   APPLE_PASS_KEY_PASSPHRASE: z.string().optional(),
   APPLE_WWDR_CERT_PATH: z.string().optional(),
+  APPLE_WWDR_CERT_B64: z.string().optional(),
 
   GOOGLE_WALLET_ISSUER_ID: z.string().optional(),
   GOOGLE_WALLET_SERVICE_ACCOUNT_PATH: z.string().optional(),
+  GOOGLE_WALLET_SA_JSON_B64: z.string().optional(),
 });
 
 export const env = schema.parse(process.env);
