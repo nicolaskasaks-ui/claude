@@ -3,7 +3,7 @@
   "buildCommand": "npx prisma generate && npx tsc -p tsconfig.json",
   "framework": null,
   "functions": {
-    "api/[[...slug]].ts": {
+    "api/[...slug].ts": {
       "maxDuration": 30,
       "memory": 1024,
       "includeFiles": "{assets/**,prisma/**,dist/**,node_modules/.prisma/**,node_modules/@prisma/**}"
