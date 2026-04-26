@@ -3,130 +3,491 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Admin · Lealtad</title>
+    <title>Admin · Chuí</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600&display=swap" />
     <style>
       :root {
-        --bg: #f6f7f9;
-        --card: #ffffff;
-        --fg: #0F1B2D;
-        --muted: #5b6675;
-        --accent: #0F1B2D;
-        --accent-2: #1F3B5C;
-        --gold: #D4AF37;
-        --green: #1f9d55;
-        --red: #b00020;
-        --border: #d8dee5;
+        --bg: #EDEBE2;
+        --bg-deep: #E5E2D6;
+        --surface: #FFFFFF;
+        --ink: #10281A;
+        --ink-soft: #2C4030;
+        --ink-on-dark: #EDEBE2;
+        --muted: #7A7868;
+        --line: #D4D0C0;
+        --line-strong: rgba(16, 40, 26, 0.18);
+        --error: #8B2E2E;
+        --success: #2C5934;
+        --warning: #8A6500;
+        --serif: "Fraunces", "EB Garamond", Georgia, serif;
+        --sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
       }
       * { box-sizing: border-box; }
-      html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); text-wrap: pretty; }
-      h1, h2, h3 { text-wrap: balance; }
-      header { background: var(--accent); color: white; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
-      header .brand { font-weight: 700; }
-      header .who { font-size: 13px; opacity: .85; display: flex; gap: 14px; align-items: center; }
-      header .who button { background: transparent; color: white; border: 1px solid rgba(255,255,255,.3); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-      nav.tabs { background: white; border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; gap: 4px; overflow-x: auto; }
-      nav.tabs button { background: transparent; border: 0; padding: 14px 16px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
-      nav.tabs button.active { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
-      main { max-width: 1200px; margin: 0 auto; padding: 20px; }
-      .panel { background: var(--card); border-radius: 14px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 18px; }
-      .panel h2 { margin: 0 0 12px; font-size: 16px; }
-      .panel h3 { margin: 18px 0 8px; font-size: 14px; color: var(--muted); }
-      label { font-size: 12px; color: var(--muted); display: block; margin: 8px 0 4px; }
-      input, select, textarea { width: 100%; padding: 10px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 8px; background: white; font-family: inherit; }
-      textarea { resize: vertical; min-height: 70px; }
-      button { padding: 10px 16px; font-size: 14px; font-weight: 600; border: 0; border-radius: 8px; cursor: pointer; }
-      button.primary { background: var(--accent); color: white; }
-      button.secondary { background: #eef0f3; color: var(--fg); }
-      button.danger { background: var(--red); color: white; }
-      button.ghost { background: transparent; color: var(--muted); padding: 6px 10px; }
-      button:disabled { opacity: .5; cursor: not-allowed; }
-      .row { display: flex; gap: 10px; }
-      .row > * { flex: 1; }
-      .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
-      .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
-      .kpi { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white; padding: 18px; border-radius: 12px; }
-      .kpi .label { font-size: 12px; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
-      .kpi .value { font-size: 28px; font-weight: 700; margin-top: 4px; }
-      .kpi .sub { font-size: 12px; opacity: .7; margin-top: 4px; }
-      table { width: 100%; border-collapse: collapse; font-size: 13px; }
-      th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #eef0f3; }
-      th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
-      tr:hover td { background: #f9fafc; }
-      .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
-      .pill.draft { background: #eef0f3; color: var(--muted); }
-      .pill.scheduled { background: #fff7d6; color: #8a6500; }
-      .pill.sending { background: #d6e8ff; color: #1148a3; }
-      .pill.sent { background: #d4f4dc; color: var(--green); }
-      .pill.cancelled { background: #fde2e2; color: var(--red); }
-      .pill.tier { background: var(--gold); color: black; }
-      .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-      .toolbar .actions { display: flex; gap: 8px; }
-      .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); padding: 12px 18px; background: var(--accent); color: white; border-radius: 10px; opacity: 0; transition: opacity .2s; pointer-events: none; z-index: 1000; }
-      .toast.show { opacity: 1; }
-      .toast.error { background: var(--red); }
-      .toast.success { background: var(--green); }
-      .modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
+      html, body { margin: 0; padding: 0; height: 100%; }
+      body {
+        font-family: var(--sans);
+        background: var(--bg);
+        color: var(--ink);
+        font-feature-settings: "ss01", "cv11";
+        -webkit-font-smoothing: antialiased;
+        text-wrap: pretty;
+        font-size: 14px;
+      }
+      h1, h2, h3, .display { font-family: var(--serif); text-wrap: balance; letter-spacing: -0.01em; }
+      a { color: inherit; }
+      .eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        font-weight: 500;
+      }
+
+      /* ========== LOGIN ========== */
+      .login-page { min-height: 100vh; display: grid; place-items: center; padding: 32px; }
+      .login-card {
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        padding: 56px 48px;
+        max-width: 440px;
+        width: 100%;
+      }
+      .login-card .brand-mark {
+        height: 28px;
+        margin-bottom: 36px;
+        opacity: 0.95;
+      }
+      .login-card h1 {
+        font-size: 32px;
+        font-weight: 400;
+        margin: 0 0 6px;
+      }
+      .login-card .sub {
+        font-size: 14px;
+        color: var(--muted);
+        margin: 0 0 32px;
+      }
+
+      /* ========== APP SHELL ========== */
+      .app {
+        display: grid;
+        grid-template-columns: 232px 1fr;
+        min-height: 100vh;
+      }
+      aside.sidebar {
+        background: var(--ink);
+        color: var(--ink-on-dark);
+        padding: 32px 24px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      aside.sidebar .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 36px;
+      }
+      aside.sidebar .brand img.logo {
+        width: 36px;
+        height: auto;
+        border: 1px solid rgba(237,235,226,0.18);
+      }
+      aside.sidebar .brand .name {
+        font-family: var(--serif);
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 1;
+      }
+      aside.sidebar .brand .meta {
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        opacity: 0.6;
+        margin-top: 4px;
+      }
+      .nav-section-label {
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        opacity: 0.5;
+        margin: 18px 8px 8px;
+      }
+      .tab-btn {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: transparent;
+        color: var(--ink-on-dark);
+        border: 0;
+        padding: 10px 12px;
+        font-family: var(--sans);
+        font-size: 13.5px;
+        font-weight: 400;
+        cursor: pointer;
+        text-align: left;
+        opacity: 0.75;
+        transition: opacity 0.15s ease, background 0.15s ease;
+        border-radius: 0;
+      }
+      .tab-btn:hover { opacity: 1; }
+      .tab-btn.active {
+        opacity: 1;
+        font-weight: 500;
+        background: rgba(237,235,226,0.06);
+        position: relative;
+      }
+      .tab-btn.active::before {
+        content: "";
+        position: absolute;
+        left: -24px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: var(--ink-on-dark);
+      }
+      .nav-spacer { flex: 1; }
+      .nav-bottom {
+        border-top: 1px solid rgba(237,235,226,0.12);
+        padding-top: 18px;
+        margin-top: auto;
+      }
+      .nav-bottom .who { font-size: 12px; opacity: 0.7; margin-bottom: 10px; word-break: break-all; }
+      .nav-bottom button {
+        background: transparent;
+        color: var(--ink-on-dark);
+        border: 1px solid rgba(237,235,226,0.3);
+        padding: 8px 14px;
+        font-family: var(--sans);
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        cursor: pointer;
+      }
+      .nav-bottom button:hover { background: rgba(237,235,226,0.08); }
+
+      main.content {
+        padding: 56px 64px 80px;
+        max-width: 1120px;
+        width: 100%;
+      }
+      @media (max-width: 900px) {
+        .app { grid-template-columns: 1fr; }
+        aside.sidebar { position: static; height: auto; padding: 20px 24px; flex-direction: row; flex-wrap: wrap; gap: 4px; }
+        aside.sidebar .brand { width: 100%; margin-bottom: 12px; }
+        aside.sidebar .brand .meta { display: none; }
+        aside.sidebar .nav-spacer, aside.sidebar .nav-bottom, aside.sidebar .nav-section-label { display: none; }
+        .tab-btn.active::before { display: none; }
+        main.content { padding: 32px 24px 60px; }
+      }
+
+      /* ========== TYPOGRAPHY HEADERS ========== */
+      .page-header {
+        margin-bottom: 36px;
+        padding-bottom: 24px;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+      }
+      .page-header .title-block .eyebrow { margin-bottom: 8px; }
+      .page-header h1 {
+        font-size: 40px;
+        font-weight: 400;
+        margin: 0;
+      }
+      .page-header h1 em { font-style: italic; font-weight: 300; }
+      .page-header .actions { display: flex; gap: 10px; flex-shrink: 0; }
+
+      /* ========== PANEL ========== */
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        padding: 32px;
+        margin-bottom: 24px;
+      }
+      .panel.minimal {
+        background: transparent;
+        border: 0;
+        padding: 0;
+      }
+      .panel h2 {
+        font-size: 22px;
+        font-weight: 500;
+        margin: 0 0 4px;
+      }
+      .panel h3 {
+        font-size: 13px;
+        font-family: var(--sans);
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin: 24px 0 12px;
+      }
+      .panel-sub { font-size: 13px; color: var(--muted); margin: 0 0 24px; }
+
+      /* ========== INPUTS ========== */
+      label.field-label {
+        display: block;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin: 16px 0 6px;
+        font-weight: 500;
+      }
+      input[type="text"], input[type="email"], input[type="password"], input[type="number"], input[type="tel"], input[type="url"], input[type="color"], select, textarea {
+        width: 100%;
+        padding: 12px 0;
+        font-size: 15px;
+        font-family: var(--sans);
+        color: var(--ink);
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid var(--line-strong);
+        outline: none;
+        transition: border-color 0.18s ease;
+        border-radius: 0;
+      }
+      textarea { padding: 12px 0; min-height: 64px; resize: vertical; line-height: 1.5; }
+      input::placeholder, textarea::placeholder { color: var(--muted); }
+      input:focus, textarea:focus, select:focus { border-bottom-color: var(--ink); }
+      input[type="color"] { padding: 4px 0; height: 36px; cursor: pointer; }
+      input[type="checkbox"] { width: auto; }
+
+      /* ========== BUTTONS ========== */
+      button.primary, button.secondary, button.danger, button.ghost, .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 12px 20px;
+        font-family: var(--sans);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        cursor: pointer;
+        border: 1px solid var(--ink);
+        border-radius: 0;
+        transition: background 0.18s ease, color 0.18s ease;
+        text-decoration: none;
+      }
+      button.primary { background: var(--ink); color: var(--ink-on-dark); }
+      button.primary:hover { background: var(--ink-soft); }
+      button.secondary { background: transparent; color: var(--ink); }
+      button.secondary:hover { background: var(--bg-deep); }
+      button.danger { background: var(--error); color: var(--ink-on-dark); border-color: var(--error); }
+      button.ghost {
+        border: 0;
+        padding: 6px 10px;
+        font-size: 11px;
+        letter-spacing: 0.1em;
+        background: transparent;
+        color: var(--ink-soft);
+        text-transform: uppercase;
+        font-weight: 500;
+      }
+      button.ghost:hover { color: var(--ink); }
+      button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+      /* ========== KPI ========== */
+      .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1px; background: var(--line-strong); border: 1px solid var(--line-strong); }
+      .kpi {
+        background: var(--surface);
+        padding: 28px 24px;
+      }
+      .kpi .label {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        font-weight: 500;
+      }
+      .kpi .value {
+        font-family: var(--serif);
+        font-size: 48px;
+        font-weight: 400;
+        line-height: 1;
+        margin: 16px 0 8px;
+        letter-spacing: -0.02em;
+      }
+      .kpi .sub { font-size: 12px; color: var(--muted); }
+
+      /* ========== TABLE ========== */
+      table { width: 100%; border-collapse: collapse; }
+      thead th {
+        font-family: var(--sans);
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-weight: 500;
+        color: var(--ink-soft);
+        text-align: left;
+        padding: 12px 8px;
+        border-bottom: 1px solid var(--line-strong);
+      }
+      tbody td {
+        padding: 14px 8px;
+        font-size: 13.5px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      tbody tr:last-child td { border-bottom: 0; }
+      tbody tr.clickable { cursor: pointer; transition: background 0.12s ease; }
+      tbody tr.clickable:hover td { background: var(--bg-deep); }
+      td .name-strong { font-weight: 500; }
+      td code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 12px; color: var(--muted); }
+
+      /* ========== PILL ========== */
+      .pill {
+        display: inline-block;
+        padding: 3px 10px;
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        font-weight: 500;
+        background: var(--bg-deep);
+        color: var(--ink-soft);
+        border: 1px solid var(--line-strong);
+      }
+      .pill.draft { background: var(--bg-deep); color: var(--ink-soft); }
+      .pill.scheduled { background: #FAF1D5; color: var(--warning); border-color: #E8D69A; }
+      .pill.sending { background: #DCE8DC; color: var(--success); border-color: #B8D4B8; }
+      .pill.sent { background: #DCE8DC; color: var(--success); border-color: #B8D4B8; }
+      .pill.cancelled { background: #F5DEDE; color: var(--error); border-color: #E5BABA; }
+      .pill.tier { background: var(--ink); color: var(--ink-on-dark); border-color: var(--ink); }
+
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        font-size: 11px;
+        background: var(--bg-deep);
+        color: var(--ink-soft);
+        border: 1px solid var(--line);
+      }
+
+      /* ========== MODAL ========== */
+      .modal { position: fixed; inset: 0; background: rgba(16,40,26,0.45); display: none; align-items: center; justify-content: center; z-index: 200; padding: 20px; }
       .modal.active { display: flex; }
-      .modal .panel { width: min(560px, 100%); max-height: 90vh; overflow-y: auto; margin: 0; }
-      .empty { color: var(--muted); padding: 24px 0; text-align: center; font-size: 13px; }
-      .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 11px; background: #eef0f3; color: var(--muted); }
-      .tier-bar { height: 8px; background: #eef0f3; border-radius: 4px; overflow: hidden; margin-top: 6px; }
-      .tier-bar > span { display: block; height: 100%; background: var(--gold); }
-      .login-wrap { max-width: 400px; margin: 80px auto; }
+      .modal .panel {
+        width: min(560px, 100%);
+        max-height: 90vh;
+        overflow-y: auto;
+        margin: 0;
+      }
+      .modal .panel h2 { margin-bottom: 8px; }
+
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 14px 22px;
+        background: var(--ink);
+        color: var(--ink-on-dark);
+        font-size: 13px;
+        font-weight: 500;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        pointer-events: none;
+        z-index: 1000;
+        border: 1px solid var(--ink);
+      }
+      .toast.show { opacity: 1; }
+      .toast.error { background: var(--error); border-color: var(--error); }
+      .toast.success { background: var(--success); border-color: var(--success); }
+
+      .empty { color: var(--muted); padding: 40px 0; text-align: center; font-size: 13px; }
+      .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      .row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+      .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; }
+      .stack-tight > * + * { margin-top: 12px; }
+
+      /* Tier distribution bar */
+      .tier-row { margin-bottom: 14px; }
+      .tier-row .tier-row-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
+      .tier-row .tier-row-head .name { font-weight: 500; }
+      .tier-row .tier-row-head .stat { color: var(--muted); }
+      .tier-row .tier-bar { height: 4px; background: var(--bg-deep); margin-top: 6px; }
+      .tier-row .tier-bar > span { display: block; height: 100%; background: var(--ink); }
+
+      .err { color: var(--error); font-size: 13px; margin-top: 12px; }
     </style>
   </head>
   <body>
-    <header>
-      <div><span class="brand" id="tenantName">Admin</span> · Programa de Lealtad</div>
-      <div class="who" id="who" style="display:none">
-        <span id="whoEmail"></span>
-        <button id="logoutBtn">Salir</button>
-      </div>
-    </header>
-
     <!-- LOGIN -->
-    <main id="loginView">
-      <div class="login-wrap">
-        <section class="panel">
-          <h2>Ingresar</h2>
-          <label>Tenant slug</label>
-          <input id="loginTenant" value="chui" />
-          <label>Email</label>
+    <div class="login-page" id="loginView">
+      <div class="login-card">
+        <img src="/app/assets/logo-chui-dark.png" alt="Chuí" class="brand-mark" />
+        <h1>Panel</h1>
+        <div class="sub">Ingresá con tu cuenta de staff.</div>
+        <div>
+          <label class="field-label" for="loginTenant">Tenant</label>
+          <input id="loginTenant" type="text" value="chui" />
+          <label class="field-label" for="loginEmail">Email</label>
           <input id="loginEmail" type="email" autocomplete="email" />
-          <label>Contraseña</label>
+          <label class="field-label" for="loginPassword">Contraseña</label>
           <input id="loginPassword" type="password" autocomplete="current-password" />
-          <div style="margin-top:14px">
+          <div style="margin-top: 28px">
             <button class="primary" id="loginBtn" style="width:100%">Entrar</button>
           </div>
-        </section>
+          <div class="err" id="loginErr"></div>
+        </div>
       </div>
-    </main>
+    </div>
 
     <!-- APP -->
-    <div id="appView" style="display:none">
-      <nav class="tabs" id="tabs">
-        <button data-tab="dashboard" class="active">Dashboard</button>
-        <button data-tab="customers">Clientes</button>
-        <button data-tab="campaigns">Campañas</button>
-        <button data-tab="tiers">Niveles</button>
-        <button data-tab="rewards">Premios</button>
-        <button data-tab="settings">Ajustes</button>
-      </nav>
+    <div class="app" id="appView" style="display:none">
+      <aside class="sidebar">
+        <div class="brand">
+          <img src="/app/assets/logo-ch-monogram.png" alt="" class="logo" />
+          <div>
+            <div class="name" id="tenantName">Chuí</div>
+            <div class="meta">Friends · Admin</div>
+          </div>
+        </div>
 
-      <main>
+        <button class="tab-btn active" data-tab="dashboard">Resumen</button>
+        <button class="tab-btn" data-tab="customers">Clientes</button>
+        <button class="tab-btn" data-tab="campaigns">Campañas</button>
+
+        <div class="nav-section-label">Programa</div>
+        <button class="tab-btn" data-tab="tiers">Niveles</button>
+        <button class="tab-btn" data-tab="rewards">Premios</button>
+        <button class="tab-btn" data-tab="settings">Marca</button>
+
+        <div class="nav-spacer"></div>
+        <div class="nav-bottom">
+          <div class="who" id="whoEmail"></div>
+          <button id="logoutBtn">Cerrar sesión</button>
+        </div>
+      </aside>
+
+      <main class="content">
         <!-- DASHBOARD -->
         <section data-view="dashboard">
-          <div class="panel">
-            <h2>KPIs · últimos 30 días</h2>
-            <div class="grid-3" id="kpiGrid"></div>
+          <div class="page-header">
+            <div class="title-block">
+              <div class="eyebrow">Resumen</div>
+              <h1>Últimos <em>30 días</em></h1>
+            </div>
           </div>
-          <div class="grid-2">
+          <div class="kpi-grid" id="kpiGrid"></div>
+          <div class="grid-2" style="margin-top: 32px">
             <div class="panel">
-              <h2>Distribución por nivel</h2>
+              <h3>Distribución por nivel</h3>
               <div id="tierDist"></div>
             </div>
             <div class="panel">
-              <h2>Top premios canjeados</h2>
+              <h3>Top premios canjeados</h3>
               <div id="topRewards"></div>
             </div>
           </div>
@@ -134,25 +495,29 @@
 
         <!-- CUSTOMERS -->
         <section data-view="customers" style="display:none">
-          <div class="panel">
-            <div class="toolbar">
-              <h2 style="margin:0">Clientes</h2>
+          <div class="page-header">
+            <div class="title-block">
+              <div class="eyebrow">Comunidad</div>
+              <h1><em>Clientes</em></h1>
             </div>
-            <input id="customerSearch" placeholder="Buscar por email, teléfono o nombre" />
-            <div id="customerList" style="margin-top: 10px"></div>
+          </div>
+          <div class="panel">
+            <input id="customerSearch" placeholder="Buscar por nombre, email o teléfono" />
+            <div id="customerList" style="margin-top: 24px"></div>
           </div>
           <div class="panel" id="customerDetail" style="display:none"></div>
         </section>
 
         <!-- CAMPAIGNS -->
         <section data-view="campaigns" style="display:none">
-          <div class="panel">
-            <div class="toolbar">
-              <h2 style="margin:0">Campañas</h2>
-              <div class="actions">
-                <button class="primary" id="newCampaignBtn">Nueva campaña</button>
-              </div>
+          <div class="page-header">
+            <div class="title-block">
+              <div class="eyebrow">Comunicación</div>
+              <h1><em>Campañas</em></h1>
             </div>
+            <div class="actions"><button class="primary" id="newCampaignBtn">Nueva campaña</button></div>
+          </div>
+          <div class="panel">
             <div id="campaignList"></div>
           </div>
           <div class="panel" id="campaignDetail" style="display:none"></div>
@@ -160,61 +525,68 @@
 
         <!-- TIERS -->
         <section data-view="tiers" style="display:none">
-          <div class="panel">
-            <div class="toolbar">
-              <h2 style="margin:0">Niveles</h2>
-              <div class="actions">
-                <button class="primary" id="newTierBtn">Nuevo nivel</button>
-              </div>
+          <div class="page-header">
+            <div class="title-block">
+              <div class="eyebrow">Programa</div>
+              <h1><em>Niveles</em></h1>
             </div>
+            <div class="actions"><button class="primary" id="newTierBtn">Nuevo nivel</button></div>
+          </div>
+          <div class="panel">
+            <p class="panel-sub">Los clientes suben de nivel automáticamente al alcanzar los puntos o gasto definidos. Nadie elige su nivel: se gana.</p>
             <div id="tierList"></div>
           </div>
         </section>
 
         <!-- REWARDS -->
         <section data-view="rewards" style="display:none">
-          <div class="panel">
-            <div class="toolbar">
-              <h2 style="margin:0">Premios</h2>
-              <div class="actions">
-                <button class="primary" id="newRewardBtn">Nuevo premio</button>
-              </div>
+          <div class="page-header">
+            <div class="title-block">
+              <div class="eyebrow">Programa</div>
+              <h1><em>Premios</em></h1>
             </div>
+            <div class="actions"><button class="primary" id="newRewardBtn">Nuevo premio</button></div>
+          </div>
+          <div class="panel">
             <div id="rewardList"></div>
           </div>
         </section>
 
         <!-- SETTINGS -->
         <section data-view="settings" style="display:none">
+          <div class="page-header">
+            <div class="title-block">
+              <div class="eyebrow">Configuración</div>
+              <h1><em>Marca</em></h1>
+            </div>
+          </div>
           <div class="panel">
-            <h2>Marca</h2>
-            <label>Nombre</label>
-            <input id="setName" />
-            <div class="row">
+            <h3>Identidad</h3>
+            <label class="field-label" for="setName">Nombre</label>
+            <input id="setName" type="text" />
+            <div class="row-2">
               <div>
-                <label>Color de marca</label>
-                <input id="setBrandColor" placeholder="#0F1B2D" />
+                <label class="field-label" for="setBrandColor">Color de marca</label>
+                <input id="setBrandColor" type="text" placeholder="#10281A" />
               </div>
               <div>
-                <label>Moneda (ISO 4217)</label>
-                <input id="setCurrency" placeholder="USD" maxlength="3" />
+                <label class="field-label" for="setCurrency">Moneda</label>
+                <input id="setCurrency" type="text" placeholder="USD" maxlength="3" />
               </div>
             </div>
-            <label>URL del logo (PNG transparente, 480×480 recomendado)</label>
-            <input id="setLogoUrl" placeholder="https://..." />
-            <div style="margin-top:14px">
-              <button class="primary" id="saveSettingsBtn">Guardar</button>
+            <label class="field-label" for="setLogoUrl">URL del logo</label>
+            <input id="setLogoUrl" type="url" placeholder="https://..." />
+            <div style="margin-top: 28px">
+              <button class="primary" id="saveSettingsBtn">Guardar cambios</button>
             </div>
           </div>
         </section>
       </main>
     </div>
 
-    <!-- MODAL -->
     <div class="modal" id="modal">
       <section class="panel" id="modalContent"></section>
     </div>
-
     <div class="toast" id="toast"></div>
 
     <script>
@@ -231,10 +603,7 @@
         const headers = { "content-type": "application/json", ...(opts.headers || {}) };
         if (state.token) headers.authorization = "Bearer " + state.token;
         const res = await fetch(path, { ...opts, headers });
-        if (res.status === 401) {
-          logout();
-          throw new Error("Sesión expirada");
-        }
+        if (res.status === 401) { logout(); throw new Error("Sesión expirada"); }
         const text = await res.text();
         const data = text ? JSON.parse(text) : null;
         if (!res.ok) throw new Error((data && (data.message || data.error)) || res.statusText);
@@ -256,25 +625,19 @@
         document.getElementById("modalContent").innerHTML = html;
         document.getElementById("modal").classList.add("active");
       }
-      function closeModal() {
-        document.getElementById("modal").classList.remove("active");
-      }
-      document.getElementById("modal").addEventListener("click", (e) => {
-        if (e.target.id === "modal") closeModal();
-      });
+      function closeModal() { document.getElementById("modal").classList.remove("active"); }
+      document.getElementById("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
 
       // ============ AUTH ============
       function showApp() {
         document.getElementById("loginView").style.display = "none";
-        document.getElementById("appView").style.display = "block";
-        document.getElementById("who").style.display = "flex";
+        document.getElementById("appView").style.display = "grid";
         document.getElementById("whoEmail").textContent = state.staff?.email || "";
         bootApp();
       }
       function showLogin() {
-        document.getElementById("loginView").style.display = "block";
+        document.getElementById("loginView").style.display = "grid";
         document.getElementById("appView").style.display = "none";
-        document.getElementById("who").style.display = "none";
       }
       function logout() {
         state.token = null;
@@ -284,32 +647,28 @@
         showLogin();
       }
       document.getElementById("logoutBtn").addEventListener("click", logout);
-
       document.getElementById("loginBtn").addEventListener("click", async () => {
         const tenantSlug = document.getElementById("loginTenant").value.trim();
         const email = document.getElementById("loginEmail").value.trim();
         const password = document.getElementById("loginPassword").value;
+        const errEl = document.getElementById("loginErr");
+        errEl.textContent = "";
         try {
-          const res = await api("/v1/auth/staff/login", {
-            method: "POST",
-            body: JSON.stringify({ tenantSlug, email, password }),
-          });
+          const res = await api("/v1/auth/staff/login", { method: "POST", body: JSON.stringify({ tenantSlug, email, password }) });
           state.token = res.token;
           state.staff = { email, role: res.role, tenantId: res.tenantId };
           localStorage.setItem("admin_token", res.token);
           localStorage.setItem("admin_staff", JSON.stringify(state.staff));
           showApp();
         } catch (e) {
-          toast(e.message, "error");
+          errEl.textContent = e.message;
         }
       });
 
       // ============ TABS ============
-      document.querySelectorAll("nav.tabs button").forEach((btn) => {
-        btn.addEventListener("click", () => switchTab(btn.dataset.tab));
-      });
+      document.querySelectorAll(".tab-btn").forEach((btn) => btn.addEventListener("click", () => switchTab(btn.dataset.tab)));
       function switchTab(name) {
-        document.querySelectorAll("nav.tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
+        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
         document.querySelectorAll("section[data-view]").forEach((s) => (s.style.display = s.dataset.view === name ? "block" : "none"));
         const loaders = { dashboard: loadDashboard, customers: loadCustomers, campaigns: loadCampaigns, tiers: loadTiers, rewards: loadRewards, settings: loadSettings };
         loaders[name]?.();
@@ -323,9 +682,7 @@
           document.getElementById("tenantName").textContent = t.name;
           state.tiers = await api("/v1/tiers");
           loadDashboard();
-        } catch (e) {
-          toast(e.message, "error");
-        }
+        } catch (e) { toast(e.message, "error"); }
       }
 
       // ============ DASHBOARD ============
@@ -337,24 +694,22 @@
           document.getElementById("kpiGrid").innerHTML = `
             <div class="kpi"><div class="label">Puntos emitidos</div><div class="value">${fmt.format(s.totals.pointsIssued)}</div><div class="sub">${s.totals.earnTransactions} transacciones</div></div>
             <div class="kpi"><div class="label">Puntos canjeados</div><div class="value">${fmt.format(s.totals.pointsRedeemed)}</div><div class="sub">${s.totals.redeemTransactions} canjes</div></div>
-            <div class="kpi"><div class="label">Ventas registradas</div><div class="value">${money(s.totals.spendCents)}</div><div class="sub">Cubre solo earn-eligible</div></div>
+            <div class="kpi"><div class="label">Ventas registradas</div><div class="value">${money(s.totals.spendCents)}</div><div class="sub">Solo earn-eligible</div></div>
           `;
           const totalCards = s.tierDistribution.reduce((a, t) => a + t.cards, 0) || 1;
           document.getElementById("tierDist").innerHTML = s.tierDistribution.length ? s.tierDistribution.map((t) => `
-            <div style="margin-bottom: 10px">
-              <div style="display:flex;justify-content:space-between;font-size:13px"><span>${t.name}</span><span><strong>${t.cards}</strong> · ${Math.round((t.cards / totalCards) * 100)}%</span></div>
+            <div class="tier-row">
+              <div class="tier-row-head"><span class="name">${t.name}</span><span class="stat">${t.cards} · ${Math.round((t.cards / totalCards) * 100)}%</span></div>
               <div class="tier-bar"><span style="width:${(t.cards / totalCards) * 100}%"></span></div>
             </div>
-          `).join("") : `<div class="empty">Sin datos</div>`;
-          document.getElementById("topRewards").innerHTML = s.topRewards.length ? `<table><thead><tr><th>Premio</th><th style="text-align:right">Canjes</th></tr></thead><tbody>${s.topRewards.map((r) => `<tr><td>${r.name || "(sin nombre)"}</td><td style="text-align:right"><strong>${r.redemptions}</strong></td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin canjes en los últimos 30 días</div>`;
-        } catch (e) {
-          toast(e.message, "error");
-        }
+          `).join("") : `<div class="empty">Sin datos todavía</div>`;
+          document.getElementById("topRewards").innerHTML = s.topRewards.length ? `<table><thead><tr><th>Premio</th><th style="text-align:right">Canjes</th></tr></thead><tbody>${s.topRewards.map((r) => `<tr><td>${escapeHtml(r.name || "(sin nombre)")}</td><td style="text-align:right" class="name-strong">${r.redemptions}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin canjes en los últimos 30 días</div>`;
+        } catch (e) { toast(e.message, "error"); }
       }
 
       // ============ CUSTOMERS ============
       let customerSearchTimer;
-      document.getElementById("customerSearch")?.addEventListener("input", () => {
+      document.getElementById("customerSearch").addEventListener("input", () => {
         clearTimeout(customerSearchTimer);
         customerSearchTimer = setTimeout(loadCustomers, 250);
       });
@@ -363,11 +718,9 @@
         try {
           const list = await api("/v1/customers" + (q ? "?q=" + encodeURIComponent(q) : ""));
           const el = document.getElementById("customerList");
-          el.innerHTML = list.length ? `<table><thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Alta</th></tr></thead><tbody>${list.map((c) => `<tr style="cursor:pointer" data-id="${c.id}"><td><strong>${[c.firstName, c.lastName].filter(Boolean).join(" ") || "—"}</strong></td><td>${c.email || "—"}</td><td>${c.phone || "—"}</td><td>${new Date(c.createdAt).toLocaleDateString()}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin resultados</div>`;
+          el.innerHTML = list.length ? `<table><thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th><th>Alta</th></tr></thead><tbody>${list.map((c) => `<tr class="clickable" data-id="${c.id}"><td class="name-strong">${escapeHtml([c.firstName, c.lastName].filter(Boolean).join(" ") || "—")}</td><td>${escapeHtml(c.email || "—")}</td><td>${escapeHtml(c.phone || "—")}</td><td>${new Date(c.createdAt).toLocaleDateString()}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin resultados</div>`;
           el.querySelectorAll("tr[data-id]").forEach((r) => r.addEventListener("click", () => showCustomer(r.dataset.id)));
-        } catch (e) {
-          toast(e.message, "error");
-        }
+        } catch (e) { toast(e.message, "error"); }
       }
       async function showCustomer(id) {
         try {
@@ -381,30 +734,35 @@
           const el = document.getElementById("customerDetail");
           el.style.display = "block";
           el.innerHTML = `
-            <div class="toolbar"><h2 style="margin:0">${[c.firstName, c.lastName].filter(Boolean).join(" ") || "Cliente"}</h2><button class="ghost" id="closeCustomer">Cerrar</button></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
+              <h2>${escapeHtml([c.firstName, c.lastName].filter(Boolean).join(" ") || "Cliente")}</h2>
+              <button class="ghost" id="closeCustomer">Cerrar</button>
+            </div>
             <div class="grid-2">
               <div>
                 <h3>Datos</h3>
-                <div>Email: <strong>${c.email || "—"}</strong></div>
-                <div>Teléfono: <strong>${c.phone || "—"}</strong></div>
-                <div>Alta: <strong>${new Date(c.createdAt).toLocaleString()}</strong></div>
+                <div class="stack-tight">
+                  <div><span style="color:var(--muted)">Email</span> · ${escapeHtml(c.email || "—")}</div>
+                  <div><span style="color:var(--muted)">Teléfono</span> · ${escapeHtml(c.phone || "—")}</div>
+                  <div><span style="color:var(--muted)">Alta</span> · ${new Date(c.createdAt).toLocaleString()}</div>
+                </div>
               </div>
               <div>
                 <h3>Tarjeta</h3>
                 ${card ? `
-                  <div>Nivel: <span class="pill tier">${card.tier?.name || "?"}</span></div>
-                  <div>Puntos: <strong>${card.pointsBalance}</strong></div>
-                  <div>Serial: <code style="font-size:12px">${card.nfcSerial}</code></div>
+                  <div class="stack-tight">
+                    <div><span style="color:var(--muted)">Nivel</span> · <span class="pill tier">${escapeHtml(card.tier?.name || "?")}</span></div>
+                    <div><span style="color:var(--muted)">Puntos</span> · <span class="name-strong" style="font-family:var(--serif);font-size:24px">${card.pointsBalance}</span></div>
+                    <div><span style="color:var(--muted)">Serial</span> · <code>${card.nfcSerial}</code></div>
+                  </div>
                 ` : `<div class="empty">Sin tarjeta</div>`}
               </div>
             </div>
             <h3>Últimas transacciones</h3>
-            ${txs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Puntos</th><th>Monto</th><th>Nota</th></tr></thead><tbody>${txs.map((t) => `<tr><td>${new Date(t.createdAt).toLocaleString()}</td><td><span class="badge">${t.kind}</span></td><td>${t.pointsDelta || ""}</td><td>${t.amountCents ? (t.amountCents / 100).toFixed(2) : ""}</td><td>${t.note || ""}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin transacciones</div>`}
+            ${txs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Puntos</th><th>Monto</th><th>Nota</th></tr></thead><tbody>${txs.map((t) => `<tr><td>${new Date(t.createdAt).toLocaleString()}</td><td><span class="badge">${t.kind}</span></td><td>${t.pointsDelta || ""}</td><td>${t.amountCents ? (t.amountCents / 100).toFixed(2) : ""}</td><td>${escapeHtml(t.note || "")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin transacciones</div>`}
           `;
           document.getElementById("closeCustomer").addEventListener("click", () => (el.style.display = "none"));
-        } catch (e) {
-          toast(e.message, "error");
-        }
+        } catch (e) { toast(e.message, "error"); }
       }
 
       // ============ CAMPAIGNS ============
@@ -414,44 +772,33 @@
           const el = document.getElementById("campaignList");
           el.innerHTML = list.length ? `<table><thead><tr><th>Título</th><th>Mensaje</th><th>Niveles</th><th>Estado</th><th>Creada</th><th></th></tr></thead><tbody>${list.map((c) => `
             <tr data-id="${c.id}">
-              <td><strong>${escapeHtml(c.title)}</strong></td>
-              <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.message)}</td>
+              <td class="name-strong">${escapeHtml(c.title)}</td>
+              <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(c.message)}</td>
               <td>${c.targetTierRanks?.length ? c.targetTierRanks.map((r) => `<span class="badge">${tierName(r)}</span>`).join(" ") : "Todos"}</td>
               <td><span class="pill ${c.status.toLowerCase()}">${c.status}</span></td>
               <td>${new Date(c.createdAt).toLocaleDateString()}</td>
               <td><button class="ghost" data-act="open">Abrir</button></td>
             </tr>`).join("")}</tbody></table>` : `<div class="empty">No hay campañas todavía</div>`;
-          el.querySelectorAll("button[data-act='open']").forEach((b) => b.addEventListener("click", (e) => {
-            e.stopPropagation();
-            showCampaign(b.closest("tr").dataset.id);
-          }));
-        } catch (e) {
-          toast(e.message, "error");
-        }
+          el.querySelectorAll("button[data-act='open']").forEach((b) => b.addEventListener("click", () => showCampaign(b.closest("tr").dataset.id)));
+        } catch (e) { toast(e.message, "error"); }
       }
-
-      function tierName(rank) {
-        return state.tiers.find((t) => t.rank === rank)?.name || `rank ${rank}`;
-      }
-
-      function escapeHtml(s) {
-        return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-      }
+      function tierName(rank) { return state.tiers.find((t) => t.rank === rank)?.name || `rank ${rank}`; }
+      function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
       document.getElementById("newCampaignBtn").addEventListener("click", () => openCampaignForm());
-
       function openCampaignForm(existing) {
         const isEdit = !!existing;
-        const tierOpts = state.tiers.map((t) => `<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--fg);margin:0"><input type="checkbox" value="${t.rank}" ${existing?.targetTierRanks?.includes(t.rank) ? "checked" : ""} style="width:auto"> ${t.name}</label>`).join("");
+        const tierOpts = state.tiers.map((t) => `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);margin:0;text-transform:none;letter-spacing:0"><input type="checkbox" value="${t.rank}" ${existing?.targetTierRanks?.includes(t.rank) ? "checked" : ""}> ${escapeHtml(t.name)}</label>`).join("");
         openModal(`
           <h2>${isEdit ? "Editar campaña" : "Nueva campaña"}</h2>
-          <label>Título</label>
+          <p class="panel-sub">Llega como notificación al wallet de los clientes que matcheen.</p>
+          <label class="field-label" for="cTitle">Título</label>
           <input id="cTitle" value="${escapeHtml(existing?.title || "")}" />
-          <label>Mensaje (max 280)</label>
+          <label class="field-label" for="cMessage">Mensaje (max 280)</label>
           <textarea id="cMessage" maxlength="280">${escapeHtml(existing?.message || "")}</textarea>
-          <label>Niveles destino (vacío = todos)</label>
-          <div style="display:flex;gap:14px;flex-wrap:wrap;padding:8px 0">${tierOpts}</div>
-          <div class="row" style="margin-top:14px">
+          <label class="field-label">Niveles destino (vacío = todos)</label>
+          <div style="display:flex;gap:18px;flex-wrap:wrap;padding:8px 0">${tierOpts}</div>
+          <div style="display:flex;gap:10px;margin-top:24px">
             <button class="secondary" id="cCancel">Cancelar</button>
             <button class="primary" id="cSave">Guardar</button>
           </div>
@@ -463,20 +810,14 @@
           const ranks = Array.from(document.querySelectorAll("#modal input[type=checkbox]:checked")).map((i) => Number(i.value));
           if (!title || !message) return toast("Falta título o mensaje", "error");
           try {
-            if (isEdit) {
-              await api("/v1/campaigns/" + existing.id, { method: "PATCH", body: JSON.stringify({ title, message, targetTierRanks: ranks }) });
-            } else {
-              await api("/v1/campaigns", { method: "POST", body: JSON.stringify({ title, message, targetTierRanks: ranks }) });
-            }
+            if (isEdit) await api("/v1/campaigns/" + existing.id, { method: "PATCH", body: JSON.stringify({ title, message, targetTierRanks: ranks }) });
+            else await api("/v1/campaigns", { method: "POST", body: JSON.stringify({ title, message, targetTierRanks: ranks }) });
             toast(isEdit ? "Actualizada" : "Creada", "success");
             closeModal();
             loadCampaigns();
-          } catch (e) {
-            toast(e.message, "error");
-          }
+          } catch (e) { toast(e.message, "error"); }
         });
       }
-
       async function showCampaign(id) {
         try {
           const list = await api("/v1/campaigns");
@@ -486,44 +827,30 @@
           const el = document.getElementById("campaignDetail");
           el.style.display = "block";
           el.innerHTML = `
-            <div class="toolbar"><h2 style="margin:0">${escapeHtml(c.title)}</h2><button class="ghost" id="closeCampaign">Cerrar</button></div>
-            <div>${escapeHtml(c.message)}</div>
-            <div style="margin-top: 8px"><span class="pill ${c.status.toLowerCase()}">${c.status}</span> · <span class="badge">${c.targetTierRanks?.length ? c.targetTierRanks.map(tierName).join(", ") : "Todos los niveles"}</span></div>
-            <div class="row" style="margin-top:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><h2>${escapeHtml(c.title)}</h2><button class="ghost" id="closeCampaign">Cerrar</button></div>
+            <div style="font-size:15px;line-height:1.55;color:var(--ink-soft)">${escapeHtml(c.message)}</div>
+            <div style="margin-top:14px;display:flex;gap:8px;align-items:center"><span class="pill ${c.status.toLowerCase()}">${c.status}</span><span class="badge">${c.targetTierRanks?.length ? c.targetTierRanks.map(tierName).join(", ") : "Todos los niveles"}</span></div>
+            <div style="display:flex;gap:10px;margin-top:24px">
               ${(c.status === "DRAFT" || c.status === "SCHEDULED") ? `<button class="primary" id="sendBtn">Enviar ahora</button><button class="secondary" id="editBtn">Editar</button><button class="danger" id="delBtn">Eliminar</button>` : ""}
             </div>
             ${deliveries.length ? `
               <h3>Entregas (${deliveries.length})</h3>
-              <table><thead><tr><th>Estado</th><th>Card</th><th>Enviada</th><th>Error</th></tr></thead><tbody>${deliveries.slice(0, 100).map((d) => `<tr><td><span class="pill ${d.status.toLowerCase() === "sent" ? "sent" : d.status.toLowerCase() === "failed" ? "cancelled" : "draft"}">${d.status}</span></td><td><code style="font-size:11px">${d.cardId.slice(0, 10)}…</code></td><td>${d.sentAt ? new Date(d.sentAt).toLocaleString() : "—"}</td><td style="color:var(--red)">${d.error || ""}</td></tr>`).join("")}</tbody></table>
+              <table><thead><tr><th>Estado</th><th>Card</th><th>Enviada</th><th>Error</th></tr></thead><tbody>${deliveries.slice(0, 100).map((d) => `<tr><td><span class="pill ${d.status.toLowerCase() === "sent" ? "sent" : d.status.toLowerCase() === "failed" ? "cancelled" : "draft"}">${d.status}</span></td><td><code>${d.cardId.slice(0, 10)}…</code></td><td>${d.sentAt ? new Date(d.sentAt).toLocaleString() : "—"}</td><td style="color:var(--error)">${escapeHtml(d.error || "")}</td></tr>`).join("")}</tbody></table>
             ` : ""}
           `;
           document.getElementById("closeCampaign").addEventListener("click", () => (el.style.display = "none"));
           document.getElementById("sendBtn")?.addEventListener("click", async () => {
             if (!confirm("¿Enviar la campaña ahora?")) return;
-            try {
-              await api("/v1/campaigns/" + id + "/send", { method: "POST" });
-              toast("Enviada", "success");
-              loadCampaigns();
-              showCampaign(id);
-            } catch (e) {
-              toast(e.message, "error");
-            }
+            try { await api("/v1/campaigns/" + id + "/send", { method: "POST" }); toast("Enviada", "success"); loadCampaigns(); showCampaign(id); }
+            catch (e) { toast(e.message, "error"); }
           });
           document.getElementById("editBtn")?.addEventListener("click", () => openCampaignForm(c));
           document.getElementById("delBtn")?.addEventListener("click", async () => {
             if (!confirm("¿Eliminar esta campaña?")) return;
-            try {
-              await api("/v1/campaigns/" + id, { method: "DELETE" });
-              toast("Eliminada", "success");
-              el.style.display = "none";
-              loadCampaigns();
-            } catch (e) {
-              toast(e.message, "error");
-            }
+            try { await api("/v1/campaigns/" + id, { method: "DELETE" }); toast("Eliminada", "success"); el.style.display = "none"; loadCampaigns(); }
+            catch (e) { toast(e.message, "error"); }
           });
-        } catch (e) {
-          toast(e.message, "error");
-        }
+        } catch (e) { toast(e.message, "error"); }
       }
 
       // ============ TIERS ============
@@ -535,12 +862,12 @@
           el.innerHTML = list.length ? `<table><thead><tr><th>#</th><th>Nombre</th><th>Calificación</th><th>Descuento</th><th>Multiplier</th><th>Color</th><th></th></tr></thead><tbody>${list.map((t) => `
             <tr data-rank="${t.rank}">
               <td>${t.rank}</td>
-              <td><strong>${escapeHtml(t.name)}</strong></td>
+              <td class="name-strong">${escapeHtml(t.name)}</td>
               <td>${t.qualifyPoints} pts · ${(t.qualifySpend / 100).toLocaleString()} ${state.tenant?.currency || ""}</td>
               <td>${t.discountPct}%</td>
               <td>×${t.pointsMultiplier}</td>
-              <td><span style="display:inline-block;width:18px;height:18px;border-radius:50%;background:${t.color};border:1px solid var(--border);vertical-align:middle"></span> <code style="font-size:11px">${t.color}</code></td>
-              <td><button class="ghost" data-act="edit">Editar</button> <button class="ghost" data-act="del">×</button></td>
+              <td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${t.color};border:1px solid var(--line);vertical-align:middle"></span> <code>${t.color}</code></td>
+              <td><button class="ghost" data-act="edit">Editar</button> <button class="ghost" data-act="del">Eliminar</button></td>
             </tr>`).join("")}</tbody></table>` : `<div class="empty">No hay niveles</div>`;
           el.querySelectorAll("button[data-act='edit']").forEach((b) => b.addEventListener("click", () => {
             const rank = Number(b.closest("tr").dataset.rank);
@@ -552,28 +879,26 @@
             try { await api("/v1/tiers/" + rank, { method: "DELETE" }); toast("Eliminado", "success"); loadTiers(); }
             catch (e) { toast(e.message, "error"); }
           }));
-        } catch (e) {
-          toast(e.message, "error");
-        }
+        } catch (e) { toast(e.message, "error"); }
       }
       document.getElementById("newTierBtn").addEventListener("click", () => openTierForm());
       function openTierForm(existing) {
         openModal(`
           <h2>${existing ? "Editar nivel" : "Nuevo nivel"}</h2>
-          <div class="row">
-            <div><label>Rank</label><input id="tRank" type="number" min="1" value="${existing?.rank ?? ""}" ${existing ? "readonly" : ""} /></div>
-            <div><label>Nombre</label><input id="tName" value="${escapeHtml(existing?.name || "")}" /></div>
+          <div class="row-2">
+            <div><label class="field-label" for="tRank">Rank</label><input id="tRank" type="number" min="1" value="${existing?.rank ?? ""}" ${existing ? "readonly" : ""}></div>
+            <div><label class="field-label" for="tName">Nombre</label><input id="tName" value="${escapeHtml(existing?.name || "")}"></div>
           </div>
-          <div class="row">
-            <div><label>Puntos para calificar</label><input id="tQp" type="number" min="0" value="${existing?.qualifyPoints ?? 0}" /></div>
-            <div><label>Gasto para calificar (cents)</label><input id="tQs" type="number" min="0" value="${existing?.qualifySpend ?? 0}" /></div>
+          <div class="row-2">
+            <div><label class="field-label" for="tQp">Puntos para calificar</label><input id="tQp" type="number" min="0" value="${existing?.qualifyPoints ?? 0}"></div>
+            <div><label class="field-label" for="tQs">Gasto (cents)</label><input id="tQs" type="number" min="0" value="${existing?.qualifySpend ?? 0}"></div>
           </div>
-          <div class="row">
-            <div><label>Descuento %</label><input id="tDp" type="number" min="0" max="100" value="${existing?.discountPct ?? 0}" /></div>
-            <div><label>Multiplier de puntos</label><input id="tMul" type="number" step="0.1" min="0" value="${existing?.pointsMultiplier ?? 1}" /></div>
-            <div><label>Color</label><input id="tColor" type="color" value="${existing?.color || "#C0C0C0"}" /></div>
+          <div class="row-3">
+            <div><label class="field-label" for="tDp">Descuento %</label><input id="tDp" type="number" min="0" max="100" value="${existing?.discountPct ?? 0}"></div>
+            <div><label class="field-label" for="tMul">Multiplier</label><input id="tMul" type="number" step="0.1" min="0" value="${existing?.pointsMultiplier ?? 1}"></div>
+            <div><label class="field-label" for="tColor">Color</label><input id="tColor" type="color" value="${existing?.color || "#10281A"}"></div>
           </div>
-          <div class="row" style="margin-top:14px"><button class="secondary" id="tCancel">Cancelar</button><button class="primary" id="tSave">Guardar</button></div>
+          <div style="display:flex;gap:10px;margin-top:24px"><button class="secondary" id="tCancel">Cancelar</button><button class="primary" id="tSave">Guardar</button></div>
         `);
         document.getElementById("tCancel").addEventListener("click", closeModal);
         document.getElementById("tSave").addEventListener("click", async () => {
@@ -586,14 +911,8 @@
             pointsMultiplier: Number(document.getElementById("tMul").value),
             color: document.getElementById("tColor").value,
           };
-          try {
-            await api("/v1/tiers", { method: "POST", body: JSON.stringify(body) });
-            toast("Guardado", "success");
-            closeModal();
-            loadTiers();
-          } catch (e) {
-            toast(e.message, "error");
-          }
+          try { await api("/v1/tiers", { method: "POST", body: JSON.stringify(body) }); toast("Guardado", "success"); closeModal(); loadTiers(); }
+          catch (e) { toast(e.message, "error"); }
         });
       }
 
@@ -602,13 +921,13 @@
         try {
           const list = await api("/v1/rewards");
           const el = document.getElementById("rewardList");
-          el.innerHTML = list.length ? `<table><thead><tr><th>Nombre</th><th>Costo</th><th>Min nivel</th><th>Activo</th><th></th></tr></thead><tbody>${list.map((r) => `
+          el.innerHTML = list.length ? `<table><thead><tr><th>Nombre</th><th>Costo</th><th>Min nivel</th><th>Estado</th><th></th></tr></thead><tbody>${list.map((r) => `
             <tr data-id="${r.id}">
-              <td><strong>${escapeHtml(r.name)}</strong>${r.description ? `<br><span style="font-size:12px;color:var(--muted)">${escapeHtml(r.description)}</span>` : ""}</td>
+              <td><div class="name-strong">${escapeHtml(r.name)}</div>${r.description ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">${escapeHtml(r.description)}</div>` : ""}</td>
               <td>${r.pointsCost} pts</td>
               <td>${r.minTierRank || "—"}</td>
-              <td>${r.active ? '<span class="pill sent">activo</span>' : '<span class="pill cancelled">inactivo</span>'}</td>
-              <td><button class="ghost" data-act="edit">Editar</button> <button class="ghost" data-act="del">×</button></td>
+              <td>${r.active ? '<span class="pill sent">Activo</span>' : '<span class="pill cancelled">Inactivo</span>'}</td>
+              <td><button class="ghost" data-act="edit">Editar</button> <button class="ghost" data-act="del">Eliminar</button></td>
             </tr>`).join("")}</tbody></table>` : `<div class="empty">Aún no hay premios</div>`;
           el.querySelectorAll("button[data-act='edit']").forEach((b) => b.addEventListener("click", () => {
             const id = b.closest("tr").dataset.id;
@@ -620,25 +939,23 @@
             try { await api("/v1/rewards/" + id, { method: "DELETE" }); toast("Eliminado", "success"); loadRewards(); }
             catch (e) { toast(e.message, "error"); }
           }));
-        } catch (e) {
-          toast(e.message, "error");
-        }
+        } catch (e) { toast(e.message, "error"); }
       }
       document.getElementById("newRewardBtn").addEventListener("click", () => openRewardForm());
       function openRewardForm(existing) {
         const isEdit = !!existing;
         openModal(`
           <h2>${isEdit ? "Editar premio" : "Nuevo premio"}</h2>
-          <label>Nombre</label>
-          <input id="rName" value="${escapeHtml(existing?.name || "")}" />
-          <label>Descripción</label>
+          <label class="field-label" for="rName">Nombre</label>
+          <input id="rName" value="${escapeHtml(existing?.name || "")}">
+          <label class="field-label" for="rDesc">Descripción</label>
           <textarea id="rDesc">${escapeHtml(existing?.description || "")}</textarea>
-          <div class="row">
-            <div><label>Costo (puntos)</label><input id="rCost" type="number" min="1" value="${existing?.pointsCost ?? 100}" /></div>
-            <div><label>Nivel mínimo (rank)</label><input id="rMin" type="number" min="0" value="${existing?.minTierRank ?? 0}" /></div>
+          <div class="row-2">
+            <div><label class="field-label" for="rCost">Costo (puntos)</label><input id="rCost" type="number" min="1" value="${existing?.pointsCost ?? 100}"></div>
+            <div><label class="field-label" for="rMin">Nivel mínimo</label><input id="rMin" type="number" min="0" value="${existing?.minTierRank ?? 0}"></div>
           </div>
-          <label style="display:flex;align-items:center;gap:6px;margin-top:10px"><input type="checkbox" id="rActive" ${existing?.active !== false ? "checked" : ""} style="width:auto"> Activo</label>
-          <div class="row" style="margin-top:14px"><button class="secondary" id="rCancel">Cancelar</button><button class="primary" id="rSave">Guardar</button></div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:16px;text-transform:none;letter-spacing:0;color:var(--ink);font-size:13px;font-weight:400"><input type="checkbox" id="rActive" ${existing?.active !== false ? "checked" : ""}> Activo</label>
+          <div style="display:flex;gap:10px;margin-top:24px"><button class="secondary" id="rCancel">Cancelar</button><button class="primary" id="rSave">Guardar</button></div>
         `);
         document.getElementById("rCancel").addEventListener("click", closeModal);
         document.getElementById("rSave").addEventListener("click", async () => {
@@ -655,9 +972,7 @@
             toast("Guardado", "success");
             closeModal();
             loadRewards();
-          } catch (e) {
-            toast(e.message, "error");
-          }
+          } catch (e) { toast(e.message, "error"); }
         });
       }
 
@@ -670,9 +985,7 @@
           document.getElementById("setBrandColor").value = t.brandColor || "";
           document.getElementById("setCurrency").value = t.currency || "USD";
           document.getElementById("setLogoUrl").value = t.logoUrl || "";
-        } catch (e) {
-          toast(e.message, "error");
-        }
+        } catch (e) { toast(e.message, "error"); }
       }
       document.getElementById("saveSettingsBtn").addEventListener("click", async () => {
         const body = {
@@ -681,18 +994,12 @@
           currency: document.getElementById("setCurrency").value.trim(),
           logoUrl: document.getElementById("setLogoUrl").value.trim() || null,
         };
-        try {
-          await api("/v1/admin/tenant", { method: "PATCH", body: JSON.stringify(body) });
-          toast("Guardado", "success");
-          bootApp();
-        } catch (e) {
-          toast(e.message, "error");
-        }
+        try { await api("/v1/admin/tenant", { method: "PATCH", body: JSON.stringify(body) }); toast("Guardado", "success"); bootApp(); }
+        catch (e) { toast(e.message, "error"); }
       });
 
       // ============ INIT ============
-      if (state.token) showApp();
-      else showLogin();
+      if (state.token) showApp(); else showLogin();
     </script>
   </body>
 </html>

@@ -3,60 +3,317 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Sumate al programa</title>
+    <title>Sumate · Chuí</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600&display=swap" />
     <style>
-      :root { --bg: #0F1B2D; --card: #ffffff; --fg: #0F1B2D; --muted: #5b6675; --accent: #D4AF37; }
+      :root {
+        --bg: #EDEBE2;
+        --bg-deep: #E5E2D6;
+        --surface: #FFFFFF;
+        --ink: #10281A;
+        --ink-soft: #2C4030;
+        --ink-on-dark: #EDEBE2;
+        --muted: #7A7868;
+        --line: #D4D0C0;
+        --line-strong: rgba(16, 40, 26, 0.18);
+        --error: #8B2E2E;
+        --serif: "Fraunces", "EB Garamond", Georgia, serif;
+        --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
       * { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; }
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--fg); min-height: 100vh; padding: 24px; }
-      .card { max-width: 480px; margin: 0 auto; background: var(--card); border-radius: 18px; padding: 28px; box-shadow: 0 20px 60px rgba(0,0,0,0.25); }
-      h1 { margin: 0 0 4px; font-size: 24px; }
-      .sub { color: var(--muted); margin-bottom: 24px; font-size: 14px; }
-      label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
-      input { width: 100%; padding: 12px 14px; font-size: 16px; border: 1px solid #d8dee5; border-radius: 10px; outline: none; }
-      input:focus { border-color: var(--accent); }
-      button { width: 100%; margin-top: 20px; padding: 14px; font-size: 16px; font-weight: 600; background: var(--bg); color: white; border: 0; border-radius: 12px; cursor: pointer; }
-      button:disabled { opacity: 0.5; cursor: not-allowed; }
-      .tiers { display: flex; gap: 8px; margin-top: 18px; }
-      .tier { flex: 1; padding: 10px; border-radius: 10px; text-align: center; font-size: 12px; color: white; font-weight: 600; }
-      .result { display: none; text-align: center; }
+      body {
+        font-family: var(--sans);
+        background: var(--bg);
+        color: var(--ink);
+        min-height: 100vh;
+        font-feature-settings: "ss01", "cv11";
+        -webkit-font-smoothing: antialiased;
+        text-wrap: pretty;
+      }
+      h1, h2, h3, .display { font-family: var(--serif); text-wrap: balance; }
+      .eyebrow {
+        font-family: var(--sans);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        font-weight: 500;
+      }
+
+      /* Layout */
+      .page {
+        min-height: 100vh;
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+      }
+      header.top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 28px 32px;
+        border-bottom: 1px solid var(--line);
+      }
+      header.top .logo {
+        height: 22px;
+        width: auto;
+      }
+      header.top .meta {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+      }
+      main {
+        padding: 64px 32px 80px;
+        max-width: 720px;
+        margin: 0 auto;
+        width: 100%;
+      }
+      footer.bottom {
+        padding: 24px 32px;
+        border-top: 1px solid var(--line);
+        text-align: center;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      /* Hero */
+      .hero { margin-bottom: 56px; }
+      .hero .eyebrow { margin-bottom: 18px; }
+      .hero h1 {
+        font-size: clamp(40px, 7vw, 64px);
+        font-weight: 400;
+        line-height: 1.02;
+        letter-spacing: -0.02em;
+        margin: 0 0 20px;
+      }
+      .hero h1 em { font-style: italic; font-weight: 300; }
+      .hero p.lead {
+        font-size: 17px;
+        line-height: 1.55;
+        max-width: 52ch;
+        color: var(--ink-soft);
+        margin: 0;
+      }
+
+      /* Card with form */
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        padding: 40px 36px;
+      }
+      .panel h2 {
+        font-size: 22px;
+        font-weight: 500;
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      .panel .panel-sub {
+        font-size: 14px;
+        color: var(--muted);
+        margin: 0 0 28px;
+      }
+
+      /* Form */
+      form .field { margin-bottom: 22px; }
+      form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 520px) { form .row { grid-template-columns: 1fr; gap: 0; } }
+      label {
+        display: block;
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        margin: 0 0 8px;
+        font-weight: 500;
+      }
+      input {
+        width: 100%;
+        padding: 12px 0;
+        font-size: 16px;
+        font-family: var(--sans);
+        color: var(--ink);
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid var(--line-strong);
+        outline: none;
+        transition: border-color 0.18s ease;
+        border-radius: 0;
+      }
+      input::placeholder { color: var(--muted); }
+      input:focus { border-bottom-color: var(--ink); }
+      input:focus + .underline { transform: scaleX(1); }
+
+      button.primary, a.primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        width: 100%;
+        margin-top: 12px;
+        padding: 18px 24px;
+        font-family: var(--sans);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        background: var(--ink);
+        color: var(--ink-on-dark);
+        border: 1px solid var(--ink);
+        cursor: pointer;
+        text-decoration: none;
+        transition: background 0.2s ease, color 0.2s ease;
+      }
+      button.primary:hover, a.primary:hover { background: var(--ink-soft); }
+      button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+      .err {
+        color: var(--error);
+        font-size: 13px;
+        margin-top: 14px;
+        font-family: var(--sans);
+      }
+
+      /* Tiers minimal display */
+      .legend {
+        display: flex;
+        gap: 28px;
+        margin-top: 36px;
+        padding-top: 28px;
+        border-top: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .legend-item { display: flex; align-items: baseline; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+      .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+      /* Result state */
+      .result { display: none; }
       .result.active { display: block; }
-      .form.done { display: none; }
-      .wallet-btns { display: flex; gap: 10px; margin-top: 18px; flex-direction: column; }
-      .wallet-btn { padding: 14px; border-radius: 12px; text-decoration: none; font-weight: 600; text-align: center; }
-      .apple { background: #000; color: white; }
-      .google { background: #4285F4; color: white; }
-      .err { color: #b00020; font-size: 13px; margin-top: 8px; }
-      .footer { text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; }
+      .form-wrap.done { display: none; }
+
+      .result h2 {
+        font-size: 36px;
+        font-weight: 400;
+        letter-spacing: -0.02em;
+        margin: 0 0 8px;
+      }
+      .result h2 em { font-style: italic; font-weight: 300; }
+      .result p.lead {
+        font-size: 16px;
+        line-height: 1.55;
+        color: var(--ink-soft);
+        max-width: 44ch;
+        margin: 0 0 36px;
+      }
+      .wallet-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .wallet-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        font-family: var(--sans);
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-decoration: none;
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: var(--ink-on-dark);
+        transition: opacity 0.2s ease;
+      }
+      .wallet-btn.google {
+        background: var(--surface);
+        color: var(--ink);
+      }
+      .wallet-btn:hover { opacity: 0.9; }
+
+      /* Loading shimmer */
+      .skeleton {
+        background: linear-gradient(90deg, var(--bg-deep) 25%, var(--bg) 50%, var(--bg-deep) 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.4s infinite;
+      }
+      @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      @media (max-width: 600px) {
+        header.top { padding: 22px 22px; }
+        main { padding: 40px 22px 60px; }
+        .panel { padding: 32px 24px; }
+        .hero h1 { font-size: 44px; }
+      }
     </style>
   </head>
   <body>
-    <div class="card">
-      <h1 id="brand">Sumate</h1>
-      <div class="sub">Acumulá puntos en cada visita y subí de nivel.</div>
-      <div class="tiers" id="tiers"></div>
-      <form class="form" id="form">
-        <label>Nombre</label>
-        <input id="firstName" required autocomplete="given-name" />
-        <label>Apellido</label>
-        <input id="lastName" autocomplete="family-name" />
-        <label>Email</label>
-        <input id="email" type="email" autocomplete="email" />
-        <label>Teléfono</label>
-        <input id="phone" type="tel" autocomplete="tel" />
-        <button type="submit" id="submit">Generar mi tarjeta</button>
-        <div class="err" id="err"></div>
-      </form>
-      <div class="result" id="result">
-        <h2>¡Listo!</h2>
-        <p class="sub">Agregala a tu wallet:</p>
-        <div class="wallet-btns">
-          <a class="wallet-btn apple" id="appleLink">Agregar a Apple Wallet</a>
-          <a class="wallet-btn google" id="googleLink">Agregar a Google Wallet</a>
-        </div>
-      </div>
-      <div class="footer" id="footer"></div>
+    <div class="page">
+      <header class="top">
+        <img src="/app/assets/logo-chui-dark.png" alt="Chuí" class="logo" />
+        <div class="meta" id="metaLabel">Friends Card</div>
+      </header>
+
+      <main>
+        <section class="hero">
+          <div class="eyebrow">Programa de fidelidad</div>
+          <h1>Sumate al<br /><em>círculo</em> de Chuí.</h1>
+          <p class="lead">Una tarjeta digital para tu wallet. Acumulás puntos en cada visita y accedés a beneficios reservados para amigos del restaurante.</p>
+        </section>
+
+        <section class="panel form-wrap" id="formWrap">
+          <h2>Tus datos</h2>
+          <p class="panel-sub">Te creamos la tarjeta y te llega al wallet del celular en segundos.</p>
+
+          <form id="form" novalidate>
+            <div class="row">
+              <div class="field">
+                <label for="firstName">Nombre</label>
+                <input id="firstName" required autocomplete="given-name" />
+              </div>
+              <div class="field">
+                <label for="lastName">Apellido</label>
+                <input id="lastName" autocomplete="family-name" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="email">Email</label>
+              <input id="email" type="email" autocomplete="email" />
+            </div>
+            <div class="field">
+              <label for="phone">Teléfono</label>
+              <input id="phone" type="tel" autocomplete="tel" />
+            </div>
+
+            <button type="submit" id="submit" class="primary">Generar mi tarjeta</button>
+            <div class="err" id="err"></div>
+          </form>
+
+          <div class="legend" id="tiers"></div>
+        </section>
+
+        <section class="panel result" id="result">
+          <div class="eyebrow" style="margin-bottom: 14px">Tarjeta lista</div>
+          <h2>Bienvenide<br /><em>al círculo.</em></h2>
+          <p class="lead">Agregá tu tarjeta al wallet del celular. Mostrala en el restaurante y vamos sumando puntos en cada visita.</p>
+          <div class="wallet-stack">
+            <a class="wallet-btn" id="appleLink" target="_blank" rel="noopener">Agregar a Apple Wallet</a>
+            <a class="wallet-btn google" id="googleLink" target="_blank" rel="noopener">Agregar a Google Wallet</a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="bottom">
+        <span id="footer">Chuí · Buenos Aires</span>
+      </footer>
     </div>
+
     <script>
       const params = new URLSearchParams(location.search);
       const slug = params.get("tenant") || "chui";
@@ -67,18 +324,17 @@
             fetch(`/v1/public/tenants/${slug}`).then((r) => r.json()),
             fetch(`/v1/public/tenants/${slug}/tiers`).then((r) => r.json()),
           ]);
-          document.getElementById("brand").textContent = `Sumate a ${tenant.name}`;
-          document.body.style.background = tenant.brandColor || "#0F1B2D";
-          document.getElementById("footer").textContent = `Programa de fidelidad de ${tenant.name}`;
+          document.getElementById("footer").textContent = `${tenant.name} · Programa de fidelidad`;
+          document.title = `Sumate · ${tenant.name}`;
           const tiersEl = document.getElementById("tiers");
-          tiersEl.innerHTML = "";
-          for (const t of tiers) {
-            const div = document.createElement("div");
-            div.className = "tier";
-            div.style.background = t.color;
-            div.innerHTML = `<div>${t.name}</div><div style="opacity:.85;font-weight:400">${t.discountPct}% off</div>`;
-            tiersEl.appendChild(div);
-          }
+          tiersEl.innerHTML = tiers
+            .map((t) => `
+              <div class="legend-item">
+                <span class="legend-dot" style="background:${t.color}"></span>
+                <span><strong style="color:var(--ink);font-weight:500">${t.name}</strong> · ${t.discountPct}% off</span>
+              </div>
+            `)
+            .join("");
         } catch (e) {
           document.getElementById("err").textContent = "No pudimos cargar el comercio.";
         }
@@ -90,7 +346,7 @@
         const errEl = document.getElementById("err");
         errEl.textContent = "";
         btn.disabled = true;
-        btn.textContent = "Generando...";
+        btn.textContent = "Generando…";
         try {
           const body = {
             tenantSlug: slug,
@@ -99,6 +355,8 @@
             email: document.getElementById("email").value.trim() || undefined,
             phone: document.getElementById("phone").value.trim() || undefined,
           };
+          if (!body.firstName) throw new Error("Necesitamos al menos tu nombre.");
+          if (!body.email && !body.phone) throw new Error("Dejanos un email o un teléfono para identificarte.");
           const res = await fetch("/v1/public/enroll", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -109,11 +367,12 @@
             throw new Error(data.message || "No pudimos generar tu tarjeta");
           }
           const data = await res.json();
-          document.querySelector(".form").classList.add("done");
+          document.getElementById("formWrap").classList.add("done");
           const r = document.getElementById("result");
           r.classList.add("active");
           document.getElementById("appleLink").href = data.appleWalletUrl;
           document.getElementById("googleLink").href = data.googleWalletUrl;
+          window.scrollTo({ top: 0, behavior: "smooth" });
         } catch (err) {
           errEl.textContent = err.message;
           btn.disabled = false;
