@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { buildServer } from "../src/server.js";
 
-// Wraps the same Fastify app as api/v1/[...slug].ts but lives at the root
-// of /api/ so single-segment paths (/api/health) reach Fastify too. Vercel's
-// catch-all only matches multi-segment paths reliably when nested under a
-// folder, so /health gets its own file.
+// Single Vercel serverless entrypoint. vercel.json's routes config sends all
+// non-static paths here, preserving the original URL on req.url so Fastify's
+// existing route table (/v1/..., /health, /v1/wallet/apple/...) keeps
+// matching without any prefix stripping.
 
 let appPromise: Promise<Awaited<ReturnType<typeof buildServer>>> | null = null;
 
@@ -24,7 +24,5 @@ export default async function handler(
   res: ServerResponse,
 ) {
   const app = await getApp();
-  // The function is at /api/health, but Fastify expects /health.
-  req.url = "/health";
   app.server.emit("request", req, res);
 }

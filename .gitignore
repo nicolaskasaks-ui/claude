@@ -20,3 +20,4 @@ google-wallet-sa.json
 .claude/
 coverage/
 .tsbuildinfo
+.vercel
