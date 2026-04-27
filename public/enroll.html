@@ -319,6 +319,10 @@
                 <input id="phone" type="tel" autocomplete="tel-national" inputmode="tel" placeholder="11 5555 5555" />
               </div>
             </div>
+            <div class="field">
+              <label for="birthDate">Cumpleaños <span class="hint">(opcional, te recibimos con un detalle)</span></label>
+              <input id="birthDate" type="date" autocomplete="bday" />
+            </div>
 
             <button type="submit" id="submit" class="primary">Generar mi tarjeta</button>
             <div class="err" id="err"></div>
@@ -442,6 +446,7 @@
             tenantSlug: slug,
             firstName: document.getElementById("firstName").value.trim(),
             lastName: document.getElementById("lastName").value.trim() || undefined,
+            birthDate: document.getElementById("birthDate").value || undefined,
             email: document.getElementById("email").value.trim() || undefined,
             phone: composePhone(),
           };

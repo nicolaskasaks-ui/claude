@@ -20,33 +20,34 @@ datasource db {
 // users, customers, cards and gift cards.
 // ---------------------------------------------------------------------------
 model Tenant {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  brandColor  String   @default("#0F1B2D")
-  logoUrl     String?
-  currency    String   @default("USD")
+  id             String   @id @default(cuid())
+  slug           String   @unique
+  name           String
+  brandColor     String   @default("#0F1B2D")
+  logoUrl        String?
+  currency       String   @default("USD")
   // Period over which we evaluate tier qualification (in days). 365 = airline-style annual.
-  tierPeriodDays Int   @default(365)
+  tierPeriodDays Int      @default(365)
   // Geo-trigger for the wallet pass: when set, iOS surfaces the pass on the
   // lock screen as the user gets near the venue (Significant Location event).
   // No APNs needed — iOS evaluates locally.
-  latitude     Float?
-  longitude    Float?
-  relevantText String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  latitude       Float?
+  longitude      Float?
+  relevantText   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  locations   Location[]
-  staff       StaffUser[]
-  customers   Customer[]
-  tiers       Tier[]
-  rewards     Reward[]
-  cards       LoyaltyCard[]
-  giftCards   GiftCard[]
+  locations    Location[]
+  staff        StaffUser[]
+  customers    Customer[]
+  tiers        Tier[]
+  rewards      Reward[]
+  cards        LoyaltyCard[]
+  giftCards    GiftCard[]
   transactions Transaction[]
-  terminals   Terminal[]
-  campaigns   Campaign[]
+  terminals    Terminal[]
+  campaigns    Campaign[]
+  events       Event[]
 }
 
 model Location {
@@ -56,8 +57,8 @@ model Location {
   address   String?
   createdAt DateTime @default(now())
 
-  tenant    Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  terminals Terminal[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  terminals    Terminal[]
   transactions Transaction[]
 
   @@index([tenantId])
@@ -81,7 +82,7 @@ model StaffUser {
   role         StaffRole @default(CASHIER)
   createdAt    DateTime  @default(now())
 
-  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -91,24 +92,32 @@ model StaffUser {
 // Customer = end user (the diner). Belongs to one tenant. We keep PII minimal.
 // ---------------------------------------------------------------------------
 model Customer {
-  id         String   @id @default(cuid())
-  tenantId   String
-  email      String?
-  phone      String?
-  firstName  String?
-  lastName   String?
-  birthDate  DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String    @id @default(cuid())
+  tenantId       String
+  email          String?
+  phone          String?
+  firstName      String?
+  lastName       String?
+  birthDate      DateTime?
+  // Personal referral code (assigned when the customer reaches Habitué).
+  // Friends who use it on their first visit unlock a welcome benefit and
+  // credit the referrer.
+  referralCode   String?   @unique
+  // The code this customer used at enrollment, if any.
+  referredByCode String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  cards      LoyaltyCard[]
-  giftCards  GiftCard[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cards        LoyaltyCard[]
+  giftCards    GiftCard[]
   transactions Transaction[]
+  rewards      Reward[]
 
   @@unique([tenantId, email])
   @@unique([tenantId, phone])
   @@index([tenantId])
+  @@index([referralCode])
 }
 
 // ---------------------------------------------------------------------------
@@ -117,21 +126,53 @@ model Customer {
 // `discountPct` is applied automatically at redemption time.
 // ---------------------------------------------------------------------------
 model Tier {
-  id              String  @id @default(cuid())
-  tenantId        String
-  name            String
-  rank            Int     // 1=Silver, 2=Gold, 3=Platinum, ...
+  id               String   @id @default(cuid())
+  tenantId         String
+  name             String
+  rank             Int // 1=Amigo, 2=Habitué, 3=Cofrade del Fuego, ...
   // Threshold to reach this tier within the tenant's tier period.
-  qualifyPoints   Int     @default(0)
-  qualifySpend    Int     @default(0) // in minor units (cents)
-  // Permanent perk for customers in this tier.
-  discountPct     Int     @default(0) // 0..100
-  pointsMultiplier Float  @default(1.0)
-  color           String  @default("#C0C0C0")
-  createdAt       DateTime @default(now())
+  qualifyPoints    Int      @default(0)
+  qualifySpend     Int      @default(0) // in minor units (cents)
+  // Blanket discount applied unconditionally at the till. Kept for backwards
+  // compat; the richer conditional perks (lunch window, happy hour, etc.) live
+  // in the `perks` JSON and are evaluated at POS scan time.
+  discountPct      Int      @default(0) // 0..100
+  pointsMultiplier Float    @default(1.0)
+  color            String   @default("#C0C0C0")
+  // Short copy describing the tier (rendered on the wallet pass back).
+  description      String?
+  // Optional override to load a per-tier strip image. Path is relative to
+  //   assets/passes/<tenant.slug>/strips/<stripImage>/strip{,@2x,@3x}.png
+  // If null, falls back to the tenant-default strip.png at the slug root.
+  stripImage       String?
+  // Structured perks the POS evaluates at scan time. Schema (informal):
+  //   {
+  //     "lunch_discount": 10,            // pct off, 0 = none
+  //     "lunch_window": "12:00-15:00",   // local time window (HH:mm-HH:mm)
+  //     "lunch_days": [1,2,3,4,5],       // 0=Sun .. 6=Sat
+  //     "dinner_discount": 0,
+  //     "dinner_window": null,
+  //     "dinner_days": [],
+  //     "happy_hour_2x1": false,
+  //     "happy_hour_window": null,
+  //     "wine_upgrade_per_month": 0,
+  //     "free_dessert": "never",          // never|birthday|always
+  //     "welcome_drink": false,           // first visit after enrollment
+  //     "presale_window_hours": 0,        // 0=no early access
+  //     "presale_reserved_slot": false,
+  //     "merch_discount": 0,
+  //     "birthday_bottle_sku": null,      // null = no bottle, "<SKU>" = configured
+  //     "birthday_dessert": false,
+  //     "chef_table_per_year": 0,
+  //     "private_party_invites": false,
+  //     "waitlist_priority": false,
+  //     "newsletter": false
+  //   }
+  perks            Json?
+  createdAt        DateTime @default(now())
 
-  tenant          Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  cards           LoyaltyCard[]
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cards  LoyaltyCard[]
 
   @@unique([tenantId, rank])
   @@unique([tenantId, name])
@@ -139,22 +180,54 @@ model Tier {
 }
 
 // ---------------------------------------------------------------------------
-// Reward = catalog of items the customer can redeem with points.
+// Reward = a benefit that can be claimed at the till. Three flavors:
+//   * POINTS_REDEMPTION: customer-initiated, costs points (catalog reward).
+//   * TIER_PERK:         automatic perk for everyone in a tier (no points).
+//   * EVENT_INVITE:      ticketed access to a special event.
+//   * ADHOC:             personal one-shot benefit attached to a specific
+//                        card (birthday gift, referral credit). Can carry
+//                        an `expiresAt`.
 // ---------------------------------------------------------------------------
+enum RewardKind {
+  POINTS_REDEMPTION
+  TIER_PERK
+  EVENT_INVITE
+  ADHOC
+}
+
 model Reward {
-  id          String  @id @default(cuid())
+  id          String     @id @default(cuid())
   tenantId    String
   name        String
   description String?
-  pointsCost  Int
+  kind        RewardKind @default(POINTS_REDEMPTION)
+  pointsCost  Int        @default(0)
   // Optional minimum tier rank required to redeem.
-  minTierRank Int     @default(0)
-  active      Boolean @default(true)
-  createdAt   DateTime @default(now())
+  minTierRank Int        @default(0)
+  active      Boolean    @default(true)
+  // Free-form tag for grouping (e.g. "birthday-2026-04-27", "referral",
+  // "welcome-drink"). Indexed so cron jobs and POS can fetch by tag.
+  tag         String?
+  // For ADHOC rewards (birthday gifts, referrals): the card this reward is
+  // bound to. Null for catalog rewards available to everyone in the tenant.
+  cardId      String?
+  customerId  String?
+  // For ADHOC rewards: the timestamp after which this reward is no longer
+  // claimable. Null = never expires.
+  expiresAt   DateTime?
+  // Once an ADHOC reward is consumed it is marked claimed. POINTS_REDEMPTION
+  // rewards are reusable and ignore this field.
+  claimedAt   DateTime?
+  createdAt   DateTime   @default(now())
 
-  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  card     LoyaltyCard? @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  customer Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
+  @@index([cardId])
+  @@index([customerId])
+  @@index([tenantId, tag])
 }
 
 // ---------------------------------------------------------------------------
@@ -183,12 +256,14 @@ model LoyaltyCard {
   issuedAt        DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
-  tenant          Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer        Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  tier            Tier @relation(fields: [tierId], references: [id])
-  transactions    Transaction[]
-  walletDevices   WalletDevice[]
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer           Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tier               Tier               @relation(fields: [tierId], references: [id])
+  transactions       Transaction[]
+  walletDevices      WalletDevice[]
   campaignDeliveries CampaignDelivery[]
+  rewards            Reward[]
+  eventTickets       EventTicket[]
 
   @@index([tenantId])
   @@index([customerId])
@@ -205,19 +280,19 @@ enum WalletPlatform {
 }
 
 model WalletDevice {
-  id              String         @id @default(cuid())
-  cardId          String
-  platform        WalletPlatform
+  id               String         @id @default(cuid())
+  cardId           String
+  platform         WalletPlatform
   // Apple: deviceLibraryIdentifier from PassKit web service registration.
   // Google: a stable device id we get from the Wallet API push channel.
   deviceIdentifier String
   // Apple: the pushToken Apple sends with the registration call.
   // Google: not used; updates are pushed by calling the Wallet REST API.
-  pushToken       String?
-  registeredAt    DateTime       @default(now())
-  lastSeenAt      DateTime       @default(now())
+  pushToken        String?
+  registeredAt     DateTime       @default(now())
+  lastSeenAt       DateTime       @default(now())
 
-  card            LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  card LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([platform, deviceIdentifier, cardId])
   @@index([cardId])
@@ -237,21 +312,21 @@ enum CampaignStatus {
 }
 
 model Campaign {
-  id           String         @id @default(cuid())
-  tenantId     String
-  title        String
+  id              String         @id @default(cuid())
+  tenantId        String
+  title           String
   // Short message shown in the wallet pass back / lock-screen notification.
   // Both Apple and Google constrain this to a few hundred chars.
-  message      String
+  message         String
   // Subset of tier ranks that should receive this campaign. Empty array = all.
-  targetTierRanks Int[]       @default([])
-  status       CampaignStatus @default(DRAFT)
-  scheduledFor DateTime?
-  sentAt       DateTime?
-  createdAt    DateTime       @default(now())
+  targetTierRanks Int[]          @default([])
+  status          CampaignStatus @default(DRAFT)
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  createdAt       DateTime       @default(now())
 
-  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  deliveries   CampaignDelivery[]
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries CampaignDelivery[]
 
   @@index([tenantId, status])
 }
@@ -263,15 +338,15 @@ enum DeliveryStatus {
 }
 
 model CampaignDelivery {
-  id          String         @id @default(cuid())
-  campaignId  String
-  cardId      String
-  status      DeliveryStatus @default(PENDING)
-  error       String?
-  sentAt      DateTime?
+  id         String         @id @default(cuid())
+  campaignId String
+  cardId     String
+  status     DeliveryStatus @default(PENDING)
+  error      String?
+  sentAt     DateTime?
 
-  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  card        LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  campaign Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  card     LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@unique([campaignId, cardId])
   @@index([campaignId, status])
@@ -291,23 +366,23 @@ enum GiftCardStatus {
 }
 
 model GiftCard {
-  id              String         @id @default(cuid())
-  tenantId        String
+  id            String         @id @default(cuid())
+  tenantId      String
   // Optional: the recipient. Anonymous gift cards are allowed (customerId null).
-  customerId      String?
-  code            String         @unique // human-readable, e.g. for receipts and online redemption
-  nfcSerial       String         @unique // opaque id embedded in the wallet pass
-  pinHash         String?        // optional verification PIN for online redemption
-  initialAmount   Int            // minor units (cents)
-  balance         Int            // minor units (cents)
-  status          GiftCardStatus @default(ACTIVE)
-  expiresAt       DateTime?
-  issuedAt        DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  customerId    String?
+  code          String         @unique // human-readable, e.g. for receipts and online redemption
+  nfcSerial     String         @unique // opaque id embedded in the wallet pass
+  pinHash       String? // optional verification PIN for online redemption
+  initialAmount Int // minor units (cents)
+  balance       Int // minor units (cents)
+  status        GiftCardStatus @default(ACTIVE)
+  expiresAt     DateTime?
+  issuedAt      DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  tenant          Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer        Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  transactions    Transaction[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
 
   @@index([tenantId])
   @@index([customerId])
@@ -318,39 +393,39 @@ model GiftCard {
 // Append-only: we never UPDATE an existing transaction; reversals are new rows.
 // ---------------------------------------------------------------------------
 enum TransactionKind {
-  EARN              // points credited from a purchase
-  REDEEM_REWARD     // points debited to claim a reward
-  TIER_DISCOUNT     // discount applied at the till (not points)
-  GIFT_LOAD         // money loaded onto a gift card
-  GIFT_REDEEM       // money spent off a gift card
-  ADJUSTMENT        // manual correction by staff
-  REVERSAL          // undo of a previous tx
+  EARN // points credited from a purchase
+  REDEEM_REWARD // points debited to claim a reward
+  TIER_DISCOUNT // discount applied at the till (not points)
+  GIFT_LOAD // money loaded onto a gift card
+  GIFT_REDEEM // money spent off a gift card
+  ADJUSTMENT // manual correction by staff
+  REVERSAL // undo of a previous tx
 }
 
 model Transaction {
-  id            String          @id @default(cuid())
-  tenantId      String
-  locationId    String?
-  customerId    String?
-  cardId        String?
-  giftCardId    String?
-  kind          TransactionKind
+  id             String          @id @default(cuid())
+  tenantId       String
+  locationId     String?
+  customerId     String?
+  cardId         String?
+  giftCardId     String?
+  kind           TransactionKind
   // Amounts. Use whichever fields apply to the kind.
-  amountCents   Int             @default(0) // money moved (gift cards, sale total)
-  pointsDelta   Int             @default(0) // +earn / -redeem
-  note          String?
+  amountCents    Int             @default(0) // money moved (gift cards, sale total)
+  pointsDelta    Int             @default(0) // +earn / -redeem
+  note           String?
   // For idempotency on POS retries (terminal sends a UUID).
-  idempotencyKey String?        @unique
-  createdAt     DateTime        @default(now())
-  reversedById  String?         @unique
-  reversedBy    Transaction?    @relation("Reversal", fields: [reversedById], references: [id])
-  reverses      Transaction?    @relation("Reversal")
+  idempotencyKey String?         @unique
+  createdAt      DateTime        @default(now())
+  reversedById   String?         @unique
+  reversedBy     Transaction?    @relation("Reversal", fields: [reversedById], references: [id])
+  reverses       Transaction?    @relation("Reversal")
 
-  tenant        Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  location      Location? @relation(fields: [locationId], references: [id])
-  customer      Customer? @relation(fields: [customerId], references: [id])
-  card          LoyaltyCard? @relation(fields: [cardId], references: [id])
-  giftCard      GiftCard? @relation(fields: [giftCardId], references: [id])
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location Location?    @relation(fields: [locationId], references: [id])
+  customer Customer?    @relation(fields: [customerId], references: [id])
+  card     LoyaltyCard? @relation(fields: [cardId], references: [id])
+  giftCard GiftCard?    @relation(fields: [giftCardId], references: [id])
 
   @@index([tenantId, createdAt])
   @@index([cardId])
@@ -358,21 +433,84 @@ model Transaction {
 }
 
 // ---------------------------------------------------------------------------
+// Event = a special evening / dinner with limited capacity. Top-tier members
+// see it during a presale window (configured per event). When publicStartsAt
+// is reached, registration opens to everyone enrolled.
+// ---------------------------------------------------------------------------
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  SOLD_OUT
+  CANCELLED
+}
+
+model Event {
+  id                 String      @id @default(cuid())
+  tenantId           String
+  title              String
+  description        String?
+  date               DateTime
+  capacity           Int
+  soldCount          Int         @default(0)
+  ticketPriceCents   Int         @default(0)
+  // Lowest tier rank that gets early access. 2 = Habitué+ see preview.
+  presaleTierMin     Int         @default(2)
+  presaleStartsAt    DateTime
+  publicStartsAt     DateTime
+  // Within the presale window, top-tier members get this many slots reserved
+  // so they cannot be locked out by the general public flood.
+  reservedForTopTier Int         @default(0)
+  status             EventStatus @default(DRAFT)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tickets EventTicket[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, date])
+}
+
+enum EventTicketStatus {
+  RESERVED
+  PAID
+  CANCELLED
+  ATTENDED
+}
+
+model EventTicket {
+  id         String            @id @default(cuid())
+  eventId    String
+  cardId     String
+  quantity   Int               @default(1)
+  status     EventTicketStatus @default(RESERVED)
+  reservedAt DateTime          @default(now())
+  paidAt     DateTime?
+
+  event Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  card  LoyaltyCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, cardId])
+  @@index([eventId, status])
+  @@index([cardId])
+}
+
+// ---------------------------------------------------------------------------
 // Terminal = a register / NFC reader. Each terminal authenticates with its own
 // API key so a leaked key only compromises one device.
 // ---------------------------------------------------------------------------
 model Terminal {
-  id          String   @id @default(cuid())
-  tenantId    String
-  locationId  String?
-  name        String
-  apiKeyHash  String   @unique
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  lastSeenAt  DateTime?
+  id         String    @id @default(cuid())
+  tenantId   String
+  locationId String?
+  name       String
+  apiKeyHash String    @unique
+  active     Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime?
 
-  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  location    Location? @relation(fields: [locationId], references: [id])
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location Location? @relation(fields: [locationId], references: [id])
 
   @@index([tenantId])
 }

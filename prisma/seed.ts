@@ -1,27 +1,115 @@
 import argon2 from "argon2";
 import { PrismaClient } from "@prisma/client";
 
-// Seed data for Chui — the launch tenant. Defines a Silver/Gold/Platinum
-// ladder modeled after airline programs:
+// Seed data for Chui — the launch tenant. Identity: a three-level membership
+// program centered on belonging, not discount escalation.
 //
-//   Silver   ($0+)        : entry tier, 1x points, no automatic discount
-//   Gold     ($500+/year) : 1.25x points, 5% off
-//   Platinum ($2000+/year): 1.5x points, 10% off
+//   Amigo               (entry, automatic on enrollment)
+//                       — first recognition, light economic perks, postre on
+//                         birthday, newsletter access.
 //
-// Reward catalog includes a free entree, a free dessert, and a tasting menu
-// upgrade reserved for Platinum.
+//   Habitué             ($300.000 ARS or 1.000 pts in 12 months)
+//                       — recurring guest, expanded lunch perk, 2x1 bar
+//                         happy hour, monthly wine upgrade, event presale at
+//                         48h notice, birthday bottle.
+//
+//   Cofrade del Fuego   ($1.200.000 ARS or 4.000 pts in 12 months, or invite)
+//                       — inner circle: presale 7 days ahead with reserved
+//                         seats, postre always, Mesa del Chef once a year,
+//                         private parties, waitlist priority.
+//
+// `discountPct` is intentionally 0 for all tiers: the new model uses the
+// `perks` JSON which the POS evaluates contextually (lunch window, dinner
+// days, happy hour) rather than applying a blanket discount.
 
 const prisma = new PrismaClient();
+
+// Perks shape — see comment in schema.prisma "Tier.perks" for all fields.
+// Numeric discounts are percent off (0..100).
+const AMIGO_PERKS = {
+  lunch_discount: 10,
+  lunch_window: "12:00-15:00",
+  lunch_days: [1, 2, 3, 4, 5],
+  dinner_discount: 0,
+  dinner_window: null,
+  dinner_days: [],
+  happy_hour_2x1: false,
+  happy_hour_window: null,
+  wine_upgrade_per_month: 0,
+  free_dessert: "birthday",
+  welcome_drink: true,
+  presale_window_hours: 0,
+  presale_reserved_slot: false,
+  merch_discount: 0,
+  birthday_bottle_sku: null,
+  birthday_dessert: true,
+  chef_table_per_year: 0,
+  private_party_invites: false,
+  waitlist_priority: false,
+  newsletter: true,
+};
+
+const HABITUE_PERKS = {
+  lunch_discount: 15,
+  lunch_window: "12:00-15:00",
+  lunch_days: [1, 2, 3, 4, 5],
+  dinner_discount: 0,
+  dinner_window: null,
+  dinner_days: [],
+  happy_hour_2x1: true,
+  happy_hour_window: "19:00-20:00",
+  happy_hour_days: [1, 2, 3, 4],
+  wine_upgrade_per_month: 1,
+  free_dessert: "birthday",
+  welcome_drink: true,
+  presale_window_hours: 48,
+  presale_reserved_slot: false,
+  merch_discount: 20,
+  birthday_bottle_sku: "house-bottle",
+  birthday_dessert: false,
+  chef_table_per_year: 0,
+  private_party_invites: false,
+  waitlist_priority: false,
+  newsletter: true,
+};
+
+const COFRADE_PERKS = {
+  lunch_discount: 20,
+  lunch_window: "12:00-15:00",
+  lunch_days: [1, 2, 3, 4, 5],
+  dinner_discount: 10,
+  dinner_window: "19:00-23:30",
+  dinner_days: [1, 2, 3, 4],
+  happy_hour_2x1: true,
+  happy_hour_window: "19:00-20:00",
+  happy_hour_days: [1, 2, 3, 4],
+  wine_upgrade_per_month: 1,
+  free_dessert: "always",
+  welcome_drink: true,
+  presale_window_hours: 168, // 7 days
+  presale_reserved_slot: true,
+  merch_discount: 25,
+  birthday_bottle_sku: "premium-bottle",
+  birthday_dessert: false,
+  chef_table_per_year: 1,
+  private_party_invites: true,
+  waitlist_priority: true,
+  newsletter: true,
+};
 
 async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { slug: "chui" },
-    update: {},
+    update: {
+      name: "Chuí",
+      brandColor: "#10281A",
+      currency: "ARS",
+    },
     create: {
       slug: "chui",
-      name: "Chui",
-      brandColor: "#0F1B2D",
-      currency: "USD",
+      name: "Chuí",
+      brandColor: "#10281A", // rgb(16,40,26) — same green as the wallet pass
+      currency: "ARS",
       tierPeriodDays: 365,
     },
   });
@@ -35,7 +123,7 @@ async function main() {
       data: {
         tenantId: tenant.id,
         email: ownerEmail,
-        name: "Chui Owner",
+        name: "Chuí Owner",
         role: "OWNER",
         passwordHash: await argon2.hash("chui-change-me-please"),
       },
@@ -45,36 +133,47 @@ async function main() {
   await prisma.location.upsert({
     where: { id: `${tenant.id}-main` },
     update: {},
-    create: { id: `${tenant.id}-main`, tenantId: tenant.id, name: "Chui Main" },
+    create: { id: `${tenant.id}-main`, tenantId: tenant.id, name: "Chuí Buenos Aires" },
   });
 
+  // Tier identities. We upsert by (tenantId, rank) so existing cards keep
+  // their tier relation through a rename.
   const tiers = [
     {
-      name: "Silver",
+      name: "Amigo",
       rank: 1,
       qualifyPoints: 0,
       qualifySpend: 0,
       discountPct: 0,
       pointsMultiplier: 1.0,
-      color: "#C0C0C0",
+      color: "#10281A",
+      description: "Te recibimos como cliente recurrente. El primer reconocimiento del Círculo.",
+      stripImage: "amigo",
+      perks: AMIGO_PERKS,
     },
     {
-      name: "Gold",
+      name: "Habitué",
       rank: 2,
-      qualifyPoints: 500,
-      qualifySpend: 50_000, // $500 in cents
-      discountPct: 5,
+      qualifyPoints: 1_000,
+      qualifySpend: 30_000_000, // $300.000 ARS expressed in cents
+      discountPct: 0,
       pointsMultiplier: 1.25,
-      color: "#D4AF37",
+      color: "#10281A",
+      description: "Venís seguido, te conocemos por nombre. Acceso anticipado a eventos del Círculo.",
+      stripImage: "habitue",
+      perks: HABITUE_PERKS,
     },
     {
-      name: "Platinum",
+      name: "Cofrade del Fuego",
       rank: 3,
-      qualifyPoints: 2_000,
-      qualifySpend: 200_000, // $2000 in cents
-      discountPct: 10,
+      qualifyPoints: 4_000,
+      qualifySpend: 120_000_000, // $1.200.000 ARS expressed in cents
+      discountPct: 0,
       pointsMultiplier: 1.5,
-      color: "#1F3B5C",
+      color: "#10281A",
+      description: "Sos parte del círculo cerrado. Mesa del Chef, fiestas privadas, prioridad en lista de espera.",
+      stripImage: "cofrade",
+      perks: COFRADE_PERKS,
     },
   ];
   for (const t of tiers) {
@@ -85,10 +184,38 @@ async function main() {
     });
   }
 
+  // Reward catalog. Restated for the new program. Existing rewards are left
+  // in place (we don't delete) because they may have history; we just stop
+  // creating placeholders that don't match the brand.
   const rewards = [
-    { name: "Postre de cortesía", description: "Cualquier postre del menú", pointsCost: 200, minTierRank: 1 },
-    { name: "Plato principal gratis", description: "Hasta $25 en un entrée", pointsCost: 800, minTierRank: 2 },
-    { name: "Menú degustación", description: "Para el titular y un acompañante", pointsCost: 3000, minTierRank: 3 },
+    {
+      name: "Postre cortesía",
+      description: "Cualquier postre del menú",
+      pointsCost: 200,
+      minTierRank: 1,
+      kind: "POINTS_REDEMPTION" as const,
+    },
+    {
+      name: "Copa de vino premium",
+      description: "Upgrade a copa premium en tu próxima visita",
+      pointsCost: 500,
+      minTierRank: 2,
+      kind: "POINTS_REDEMPTION" as const,
+    },
+    {
+      name: "Botella de la casa",
+      description: "Botella seleccionada por el sommelier para tu mesa",
+      pointsCost: 1500,
+      minTierRank: 2,
+      kind: "POINTS_REDEMPTION" as const,
+    },
+    {
+      name: "Mesa del Chef",
+      description: "Cena privada multi-tiempos para dos. Por invitación.",
+      pointsCost: 0,
+      minTierRank: 3,
+      kind: "EVENT_INVITE" as const,
+    },
   ];
   for (const r of rewards) {
     const exists = await prisma.reward.findFirst({
@@ -100,7 +227,7 @@ async function main() {
   }
 
   // eslint-disable-next-line no-console
-  console.log("Seed complete. Tenant:", tenant.slug, " Owner:", ownerEmail, "/ chui-change-me-please");
+  console.log("Seed complete. Tenant:", tenant.slug, "Owner:", ownerEmail, "/ chui-change-me-please");
 }
 
 main()

@@ -19,6 +19,15 @@ const enrollBody = z.object({
   phone: z.string().min(5).optional(),
   firstName: z.string().min(1),
   lastName: z.string().optional(),
+  // ISO date (YYYY-MM-DD). Optional. We use it to send a birthday push and
+  // unlock the relevant tier perk (postre / botella) the week of the cumple.
+  birthDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida (YYYY-MM-DD)")
+    .optional(),
+  // Code the customer was invited with. Validated lazily later — we don't
+  // reject the enroll here because a typo shouldn't block onboarding.
+  referredByCode: z.string().min(3).max(20).optional(),
 }).refine((d) => d.email || d.phone, {
   message: "email or phone is required",
 });
@@ -61,6 +70,20 @@ export async function publicRoutes(app: FastifyInstance) {
     let customerId: string;
     if (existing) {
       customerId = existing.id;
+      // Backfill birthDate / referredByCode if the customer enrolled before
+      // those fields were collected, but never overwrite a value that was
+      // already on file (defends against an existing customer accidentally
+      // changing their data via re-enrollment).
+      const updates: { birthDate?: Date; referredByCode?: string } = {};
+      if (body.birthDate && !existing.birthDate) {
+        updates.birthDate = new Date(body.birthDate);
+      }
+      if (body.referredByCode && !existing.referredByCode) {
+        updates.referredByCode = body.referredByCode;
+      }
+      if (Object.keys(updates).length > 0) {
+        await prisma.customer.update({ where: { id: existing.id }, data: updates });
+      }
       if (existing.cards.length > 0) {
         const card = existing.cards[0]!;
         return reply.send({
@@ -79,6 +102,8 @@ export async function publicRoutes(app: FastifyInstance) {
           phone: body.phone,
           firstName: body.firstName,
           lastName: body.lastName,
+          birthDate: body.birthDate ? new Date(body.birthDate) : undefined,
+          referredByCode: body.referredByCode,
         },
       });
       customerId = customer.id;

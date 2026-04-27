@@ -24,41 +24,63 @@ import { loadSecretBuffer } from "../lib/secret-loader.js";
 //   <repo>/assets/passes/<tenant.slug>/{logo,icon,strip}{,@2x}.png
 // and are loaded once and cached in memory.
 
-const ASSET_FILENAMES = [
-  "logo.png",
-  "logo@2x.png",
-  "icon.png",
-  "icon@2x.png",
-  "strip.png",
-  "strip@2x.png",
-] as const;
+// Pass-level assets (logo + icon). Strip is loaded separately because we
+// override it per-tier and per-pass-kind (loyalty vs gift card).
+const PASS_ASSETS = ["logo.png", "logo@2x.png", "icon.png", "icon@2x.png"] as const;
+const STRIP_FILENAMES = ["strip.png", "strip@2x.png", "strip@3x.png"] as const;
 
 type AssetBuffers = Record<string, Buffer>;
 
 const assetCache = new Map<string, AssetBuffers>();
+const stripCache = new Map<string, AssetBuffers>();
 
-async function loadTenantAssets(slug: string): Promise<AssetBuffers> {
-  const cached = assetCache.get(slug);
-  if (cached) return cached;
-
+function passesDir(slug: string): string {
   // Resolve relative to this source file so it works in dev (tsx, src/) and
   // in built output (dist/) the same way. Both are 3 levels deep below repo
   // root: src/services/wallet-apple.ts and dist/services/wallet-apple.js.
   const here = dirname(fileURLToPath(import.meta.url));
-  const baseDir = join(here, "..", "..", "assets", "passes", slug);
+  return join(here, "..", "..", "assets", "passes", slug);
+}
+
+async function loadFromDir(dir: string, names: readonly string[]): Promise<AssetBuffers> {
   const buffers: AssetBuffers = {};
   await Promise.all(
-    ASSET_FILENAMES.map(async (name) => {
+    names.map(async (name) => {
       try {
-        buffers[name] = await readFile(join(baseDir, name));
+        buffers[name] = await readFile(join(dir, name));
       } catch {
-        // Optional assets (e.g. strip.png on tenants that don't use one) are
-        // simply skipped. Missing logo/icon will produce an Apple validation
-        // error at install-time — that's the right failure surface.
+        // Missing optional assets are skipped silently. Required logo/icon
+        // missing will surface as an Apple validation error at install time.
       }
     }),
   );
+  return buffers;
+}
+
+async function loadPassAssets(slug: string): Promise<AssetBuffers> {
+  const cached = assetCache.get(slug);
+  if (cached) return cached;
+  const buffers = await loadFromDir(passesDir(slug), PASS_ASSETS);
   assetCache.set(slug, buffers);
+  return buffers;
+}
+
+// Load the strip image for a given variant. Resolution order:
+//   1. assets/passes/<slug>/<variantPath>/strip{,@2x,@3x}.png  (tier or "gift")
+//   2. assets/passes/<slug>/strip{,@2x,@3x}.png                 (tenant default)
+async function loadStripAssets(slug: string, variantPath: string | null): Promise<AssetBuffers> {
+  const cacheKey = `${slug}::${variantPath || "_default"}`;
+  const cached = stripCache.get(cacheKey);
+  if (cached) return cached;
+
+  const baseDir = passesDir(slug);
+  const variantDir = variantPath ? join(baseDir, variantPath) : baseDir;
+  let buffers = await loadFromDir(variantDir, STRIP_FILENAMES);
+  if (Object.keys(buffers).length === 0 && variantPath) {
+    // Variant strip missing — fall back to the tenant root strip.
+    buffers = await loadFromDir(baseDir, STRIP_FILENAMES);
+  }
+  stripCache.set(cacheKey, buffers);
   return buffers;
 }
 
@@ -82,14 +104,120 @@ async function loadCerts() {
   };
 }
 
-function dollars(cents: number, currency: string) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100);
+function money(cents: number, currency: string, locale: string = "es-AR") {
+  return new Intl.NumberFormat(locale, { style: "currency", currency }).format(cents / 100);
 }
 
 function formatLastUpdate(d: Date): string {
   // Match Juicy's format ("HH:mm DD/MM") since that's what users expect.
   const pad = (n: number) => n.toString().padStart(2, "0");
   return `${pad(d.getHours())}:${pad(d.getMinutes())} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+}
+
+// Tier perks JSON shape — kept loose at runtime; full doc lives on
+// schema.prisma "Tier.perks". Only fields used by the pass renderer are
+// declared here.
+type TierPerks = {
+  lunch_discount?: number;
+  lunch_window?: string | null;
+  lunch_days?: number[];
+  dinner_discount?: number;
+  dinner_window?: string | null;
+  dinner_days?: number[];
+  happy_hour_2x1?: boolean;
+  happy_hour_window?: string | null;
+  happy_hour_days?: number[];
+  wine_upgrade_per_month?: number;
+  free_dessert?: "never" | "birthday" | "always";
+  welcome_drink?: boolean;
+  presale_window_hours?: number;
+  presale_reserved_slot?: boolean;
+  merch_discount?: number;
+  birthday_bottle_sku?: string | null;
+  birthday_dessert?: boolean;
+  chef_table_per_year?: number;
+  private_party_invites?: boolean;
+  waitlist_priority?: boolean;
+  newsletter?: boolean;
+};
+
+// Build a 2-3 line summary of the most exciting perks for the tier, written
+// for display on the back of the wallet pass. Order is intentional: lead
+// with the most tangible perks (discount, presale) then the experiential
+// ones (wine, dessert) then the status ones (waitlist, parties).
+function summarizePerks(perks: TierPerks | null | undefined): string {
+  if (!perks) return "";
+  // Decide whether welcome_drink is "interesting" enough to surface. It is
+  // for the entry tier (where the rest of the list is thin) but redundant
+  // at higher tiers where stronger perks already dominate. Heuristic: show
+  // it only if there is no presale or chef table — i.e. lower tiers.
+  const showWelcomeDrink =
+    perks.welcome_drink &&
+    !perks.presale_reserved_slot &&
+    (perks.chef_table_per_year || 0) === 0;
+
+  const parts: string[] = [];
+  if (perks.lunch_discount && perks.lunch_discount > 0) {
+    parts.push(`${perks.lunch_discount}% almuerzo L-V`);
+  }
+  if (perks.dinner_discount && perks.dinner_discount > 0) {
+    parts.push(`${perks.dinner_discount}% cena L-J`);
+  }
+  if (showWelcomeDrink) {
+    parts.push("welcome drink en primera visita");
+  }
+  if (perks.happy_hour_2x1) {
+    parts.push(`2x1 barra ${perks.happy_hour_window || ""}`.trim());
+  }
+  if (perks.presale_reserved_slot) {
+    parts.push("preventa 7 días con cupo reservado");
+  } else if (perks.presale_window_hours && perks.presale_window_hours > 0) {
+    parts.push(`preventa eventos ${perks.presale_window_hours}h`);
+  }
+  if (perks.wine_upgrade_per_month && perks.wine_upgrade_per_month > 0) {
+    parts.push("upgrade vino mensual");
+  }
+  if (perks.free_dessert === "always") {
+    parts.push("postre siempre");
+  } else if (perks.free_dessert === "birthday") {
+    parts.push("postre en cumpleaños");
+  }
+  if (perks.chef_table_per_year && perks.chef_table_per_year > 0) {
+    parts.push("Mesa del Chef anual");
+  }
+  if (perks.waitlist_priority) {
+    parts.push("prioridad en lista de espera");
+  }
+  if (perks.private_party_invites) {
+    parts.push("acceso a fiestas privadas");
+  }
+  return parts.join(" · ");
+}
+
+// "Te faltan $X o Y puntos para Habitué" — calculated from the next-rank
+// tier's threshold minus the current period activity. Returns null if the
+// card is already at the top tier.
+function nextThresholdMessage(args: {
+  card: { periodPoints: number; periodSpend: number };
+  currentTier: { rank: number };
+  tiers: { rank: number; name: string; qualifyPoints: number; qualifySpend: number }[];
+  currency: string;
+}): string | null {
+  const next = args.tiers
+    .filter((t) => t.rank > args.currentTier.rank)
+    .sort((a, b) => a.rank - b.rank)[0];
+  if (!next) return null;
+
+  const pointsLeft = Math.max(0, next.qualifyPoints - args.card.periodPoints);
+  const spendLeft = Math.max(0, next.qualifySpend - args.card.periodSpend);
+  // Already qualified but lock-in keeps card on current tier — should not
+  // normally happen since evaluateCardTier promotes immediately, but be safe.
+  if (pointsLeft === 0 && spendLeft === 0) return null;
+
+  const fragments: string[] = [];
+  if (spendLeft > 0) fragments.push(money(spendLeft, args.currency));
+  if (pointsLeft > 0) fragments.push(`${pointsLeft} pts`);
+  return `Para ${next.name}: ${fragments.join(" o ")}`;
 }
 
 export async function buildLoyaltyPass(args: {
@@ -99,9 +227,16 @@ export async function buildLoyaltyPass(args: {
   customerName: string;
   publicHost: string;
 }): Promise<Buffer> {
-  const [certs, assets, latestCampaign] = await Promise.all([
+  // The tier may carry a `stripImage` slug pointing to a per-tier strip
+  // variant under assets/passes/<slug>/strips/<stripImage>/. We resolve to
+  // the tenant-default strip if the tier doesn't override.
+  const stripVariant = args.tier.stripImage
+    ? join("strips", args.tier.stripImage)
+    : null;
+  const [certs, passAssets, stripAssets, latestCampaign, allTiers] = await Promise.all([
     loadCerts(),
-    loadTenantAssets(args.tenant.slug),
+    loadPassAssets(args.tenant.slug),
+    loadStripAssets(args.tenant.slug, stripVariant),
     // Read the most recent campaign delivery for this card so the pass can
     // include the latest campaign message as a back field. Setting
     // changeMessage on that field makes iOS surface the message as a
@@ -111,14 +246,13 @@ export async function buildLoyaltyPass(args: {
       orderBy: { sentAt: "desc" },
       include: { campaign: true },
     }),
+    // Fetch all tiers for the tenant so we can compute the "next threshold"
+    // back field. Cheap (3-5 rows) and avoids a second round trip.
+    prisma.tier.findMany({ where: { tenantId: args.tenant.id } }),
   ]);
 
-  // Layout deliberately matches the existing Chuí pass design: a strip image
-  // hero (with brand wordmark + multilingual greeting baked in), Points in
-  // the header, member name + last-update in secondary fields, no primary
-  // fields (the strip image occupies that space). Tier is intentionally not
-  // displayed on the pass — the program is points-first; tier perks (if any)
-  // apply at the till but don't change how the card looks.
+  const assets = { ...passAssets, ...stripAssets };
+
   // If the tenant has a venue lat/lng configured, attach a `locations` entry
   // so iOS pops the pass on the lock screen when the user enters the area.
   // relevantText is what shows up in the suggestion. iOS uses ~100m radius.
@@ -137,7 +271,8 @@ export async function buildLoyaltyPass(args: {
     teamIdentifier: env.APPLE_TEAM_IDENTIFIER!,
     serialNumber: args.card.id,
     organizationName: args.tenant.name,
-    description: `${args.tenant.name} Friends`,
+    // The description is what voice-over users hear — keep it descriptive.
+    description: `${args.tenant.name} · ${args.tier.name}`,
     foregroundColor: "rgb(237,235,226)",
     backgroundColor: "rgb(16,40,26)",
     labelColor: "rgb(237,235,226)",
@@ -149,16 +284,18 @@ export async function buildLoyaltyPass(args: {
   pass.type = "storeCard";
   pass.headerFields.push({
     key: "points",
-    label: "Points",
+    label: "Puntos",
     value: args.card.pointsBalance,
-    changeMessage: "Points updated to %@",
+    changeMessage: "Tenés %@ puntos",
   });
   pass.secondaryFields.push(
-    { key: "member_name", label: "Member Name", value: args.customerName },
-    { key: "last_update", label: "Last Update", value: formatLastUpdate(new Date()) },
+    { key: "member_name", label: "Miembro", value: args.customerName },
+    { key: "last_update", label: "Actualizado", value: formatLastUpdate(new Date()) },
   );
-  // Latest campaign message goes first in the back. With a changeMessage of
-  // "%@", iOS shows the literal new message as the lock-screen notification.
+
+  // Back fields. Order is intentional: announcement (push-driven) first so
+  // a fresh campaign appears at the top; then the personal membership
+  // status; then static contact info; terms last.
   if (latestCampaign?.campaign?.message) {
     pass.backFields.push({
       key: "announcement",
@@ -167,6 +304,47 @@ export async function buildLoyaltyPass(args: {
       changeMessage: "%@",
     });
   }
+
+  // Two fields: the tier name (concise, used as the lock-screen notification
+  // template via changeMessage) and the description (longer text, only seen
+  // on the back when the pass is opened).
+  pass.backFields.push({
+    key: "membership",
+    label: "Membresía",
+    value: args.tier.name,
+    changeMessage: "Bienvenido a %@",
+  });
+  if (args.tier.description) {
+    pass.backFields.push({
+      key: "membership_description",
+      label: "",
+      value: args.tier.description,
+    });
+  }
+
+  const perksValue = summarizePerks(args.tier.perks as TierPerks | null);
+  if (perksValue) {
+    pass.backFields.push({
+      key: "perks",
+      label: "Tus beneficios",
+      value: perksValue,
+    });
+  }
+
+  const next = nextThresholdMessage({
+    card: args.card,
+    currentTier: args.tier,
+    tiers: allTiers,
+    currency: args.tenant.currency,
+  });
+  if (next) {
+    pass.backFields.push({
+      key: "next_tier",
+      label: "Próximo nivel",
+      value: next,
+    });
+  }
+
   pass.backFields.push(
     {
       key: "web",
@@ -188,7 +366,7 @@ export async function buildLoyaltyPass(args: {
     },
     {
       key: "reservations",
-      label: "Reservas / Book a table",
+      label: "Reservas",
       value: "https://www.opentable.com/r/chui-buenos-aires-reservations-buenos-aires",
       attributedValue:
         '<a href="https://www.opentable.com/r/chui-buenos-aires-reservations-buenos-aires">OpenTable</a>',
@@ -200,9 +378,9 @@ export async function buildLoyaltyPass(args: {
     },
     {
       key: "terms",
-      label: "Terms and Conditions",
+      label: "Términos",
       value:
-        "Programa de fidelidad de Chuí. Los puntos se acreditan en cada visita y se pueden canjear por beneficios definidos por el restaurante. Programa sujeto a cambios.",
+        "Programa de membresía de Chuí. Los beneficios y umbrales pueden actualizarse. Los puntos no expiran mientras la cuenta esté activa.",
     },
   );
 
@@ -214,12 +392,21 @@ export async function buildLoyaltyPass(args: {
 export async function buildGiftPass(args: {
   tenant: Tenant;
   giftCard: GiftCard;
+  // Optional metadata supplied by a public purchase flow ("Regalá Chuí").
+  // Renders as a back field so the recipient sees who sent it and the note.
+  senderName?: string;
+  recipientName?: string;
+  message?: string;
   publicHost: string;
 }): Promise<Buffer> {
-  const [certs, assets] = await Promise.all([
+  const [certs, passAssets, stripAssets] = await Promise.all([
     loadCerts(),
-    loadTenantAssets(args.tenant.slug),
+    loadPassAssets(args.tenant.slug),
+    // Gift cards use a dedicated "REGALO DE CHUÍ" strip variant.
+    loadStripAssets(args.tenant.slug, "gift"),
   ]);
+
+  const assets = { ...passAssets, ...stripAssets };
 
   const pass = new PKPass(assets, certs, {
     formatVersion: 1,
@@ -227,20 +414,61 @@ export async function buildGiftPass(args: {
     teamIdentifier: env.APPLE_TEAM_IDENTIFIER!,
     serialNumber: args.giftCard.id,
     organizationName: args.tenant.name,
-    description: `${args.tenant.name} Gift Card`,
+    description: `${args.tenant.name} · Tarjeta de regalo`,
     foregroundColor: "rgb(237,235,226)",
     backgroundColor: "rgb(16,40,26)",
     labelColor: "rgb(237,235,226)",
   });
 
   pass.type = "storeCard";
-  pass.headerFields.push({ key: "type", label: "Tipo", value: "Gift Card" });
+  pass.headerFields.push({ key: "type", label: "Tipo", value: "Regalo" });
   pass.primaryFields.push({
     key: "balance",
     label: "Saldo",
-    value: dollars(args.giftCard.balance, args.tenant.currency),
+    value: money(args.giftCard.balance, args.tenant.currency),
+    changeMessage: "Saldo: %@",
   });
   pass.secondaryFields.push({ key: "code", label: "Código", value: args.giftCard.code });
+
+  if (args.message) {
+    pass.backFields.push({
+      key: "personal_message",
+      label: args.senderName ? `De ${args.senderName}` : "Mensaje",
+      value: args.message,
+    });
+  }
+  if (args.recipientName) {
+    pass.backFields.push({
+      key: "recipient",
+      label: "Para",
+      value: args.recipientName,
+    });
+  }
+  pass.backFields.push(
+    {
+      key: "redeem_terms",
+      label: "Cómo se usa",
+      value:
+        "Mostrá este pase en Chuí. Te restamos del saldo según consumas; podés usarlo en varias visitas hasta agotarlo.",
+    },
+    {
+      key: "web",
+      label: "Web",
+      value: "https://chui.com.ar",
+      attributedValue: '<a href="https://chui.com.ar">chui.com.ar</a>',
+    },
+    {
+      key: "card_id",
+      label: "ID",
+      value: args.giftCard.nfcSerial,
+    },
+    {
+      key: "terms",
+      label: "Términos",
+      value:
+        "Tarjeta de regalo de Chuí. No reembolsable, no transferible una vez utilizada parcialmente. Si perdés tu pase, contactanos con el código.",
+    },
+  );
 
   pass.setBarcodes({ message: args.giftCard.nfcSerial, format: "PKBarcodeFormatQR" });
 

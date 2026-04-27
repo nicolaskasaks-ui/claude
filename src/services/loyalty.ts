@@ -4,6 +4,19 @@ import { BadRequest, Conflict, NotFound } from "../lib/errors.js";
 import { evaluateCardTier, pickTier, rollPeriodIfNeeded } from "./tier-engine.js";
 import { enqueuePassUpdate } from "./wallet-push.js";
 
+// Brand-aligned welcome copy when a card is promoted to a higher tier. Each
+// message is short on purpose — iOS truncates lock-screen notifications.
+function tierWelcomeCopy(tierName: string): string {
+  switch (tierName) {
+    case "Habitué":
+      return "Habitué de Chuí. Tus nuevos beneficios ya están activos.";
+    case "Cofrade del Fuego":
+      return "Sos parte del Círculo. Bienvenido a Cofrade del Fuego.";
+    default:
+      return `Bienvenido a ${tierName} de Chuí.`;
+  }
+}
+
 // Issuing, accruing and redeeming on a customer's loyalty card.
 //
 // Every state-changing operation runs inside a serializable Prisma transaction
@@ -95,10 +108,12 @@ export async function accrueFromSale(input: {
 
     const evaluation = await evaluateCardTier(tx, card.id);
     if (evaluation.upgraded) {
-      // Make the new tier visible on the customer's phone immediately.
+      // Tier upgrade: message rendered by iOS as a lock-screen notification
+      // when the pass back field "Membresía" updates (changeMessage="Bienvenido a %@").
+      // We pass the raw tier name; the changeMessage template wraps it.
       await enqueuePassUpdate(tx, card.id, {
         reason: "tier_upgraded",
-        message: `¡Bienvenido a ${evaluation.newTier.name}!`,
+        message: tierWelcomeCopy(evaluation.newTier.name),
       });
     } else {
       await enqueuePassUpdate(tx, card.id, { reason: "balance_changed" });
