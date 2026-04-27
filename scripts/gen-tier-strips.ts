@@ -3,106 +3,65 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Tier strip variants for the Chuí membership pass.
+// Tier strip images for the Chuí membership pass.
 //
-// Approach: keep the original AMIGO/FRIEND/AMICO DE CHUÍ strip exactly as
-// designed and add a small badge in the bottom-right corner with the tier
-// name. Same convention Amex uses for Gold / Platinum / Black: identical
-// card silhouette, single distinguishing mark.
+// Approach: a flat solid-green background that matches the pass body
+// exactly (so there is no visible seam between strip and pass), with
+// the tier name centered in white. No imagery, no embellishments —
+// the strip's job is to name the tier, nothing else.
 //
-// Silver gets no badge — it is the entry tier and the strip's wordmark
-// already reads as Chuí Friends.
+// Background color is rgb(16,40,24), the dominant dark green sampled
+// from the original Juicy strip and now also the pass backgroundColor.
 //
-// The gift card pass intentionally has no strip so the prepaid balance
-// can sit in the primary field without overlapping a hero image.
+// Apple Wallet store-card strip dimensions:
+//   1x  375 × 144
+//   2x  750 × 288
+//   3x 1125 × 432
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(here, "..");
-const SOURCE_DIR = join(ROOT, "assets/passes/chui");
 
-const CREAM = "#EDEBE2";
-const EMBER = "#C4622A";
+const GREEN = { r: 16, g: 40, b: 24 };
+const WHITE = "#FFFFFF";
 
 type Variant = {
   slug: string;
   outDir: string;
-  // null = use the source strip unmodified (Silver case).
-  badge: { text: string; stroke: string } | null;
+  wordmark: string;
 };
 
 const VARIANTS: Variant[] = [
-  {
-    slug: "silver",
-    outDir: "assets/passes/chui/strips/silver",
-    badge: null,
-  },
-  {
-    slug: "gold",
-    outDir: "assets/passes/chui/strips/gold",
-    badge: { text: "GOLD", stroke: CREAM },
-  },
-  {
-    slug: "platinum",
-    outDir: "assets/passes/chui/strips/platinum",
-    badge: { text: "PLATINUM", stroke: EMBER },
-  },
+  { slug: "silver", outDir: "assets/passes/chui/strips/silver", wordmark: "SILVER" },
+  { slug: "gold", outDir: "assets/passes/chui/strips/gold", wordmark: "GOLD" },
+  { slug: "platinum", outDir: "assets/passes/chui/strips/platinum", wordmark: "PLATINUM" },
 ];
 
 const SCALES = [
-  { suffix: "", scale: 1 },
-  { suffix: "@2x", scale: 2 },
-  { suffix: "@3x", scale: 3 },
-] as const;
+  { suffix: "", scale: 1 as const },
+  { suffix: "@2x", scale: 2 as const },
+  { suffix: "@3x", scale: 3 as const },
+];
 
-function buildBadgeSvg(
-  text: string,
-  stroke: string,
-  scale: 1 | 2 | 3,
-): string {
+function buildStripSvg(wordmark: string, scale: 1 | 2 | 3): string {
   const w = 375 * scale;
   const h = 144 * scale;
-  const fontSize = 10 * scale;
-  const padX = 9 * scale;
-  const padY = 5 * scale;
-  const charW = fontSize * 0.78;
-  const tracking = 0.18 * fontSize;
-  const textW = text.length * charW + (text.length - 1) * tracking;
-  const boxW = textW + padX * 2;
-  const boxH = fontSize + padY * 2;
-  const marginX = 14 * scale;
-  const marginY = 14 * scale;
-  const x = w - boxW - marginX;
-  const y = h - boxH - marginY;
-  const r = 2 * scale;
+  // Type fills ~70% of strip width regardless of length, with letter
+  // spacing baked in via SVG textLength so SILVER, GOLD and PLATINUM
+  // share the same visual weight.
+  const targetTextW = w * 0.7;
+  const fontSize = Math.round(h * 0.32);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-  <rect x="${x}" y="${y}" width="${boxW}" height="${boxH}" rx="${r}" ry="${r}"
-        fill="none" stroke="${stroke}" stroke-width="${1 * scale}"/>
-  <text x="${x + boxW / 2}" y="${y + boxH / 2}" fill="${stroke}"
+  <rect width="${w}" height="${h}" fill="rgb(${GREEN.r},${GREEN.g},${GREEN.b})"/>
+  <text x="${w / 2}" y="${h / 2}" fill="${WHITE}"
         text-anchor="middle" dominant-baseline="central"
         font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
         font-weight="700"
         font-size="${fontSize}"
-        letter-spacing="${tracking}">${text}</text>
+        textLength="${targetTextW}"
+        lengthAdjust="spacingAndGlyphs">${wordmark}</text>
 </svg>`;
-}
-
-// Returns the source strip at the requested density, upscaling from the
-// closest available size if the exact one is missing (the original ships
-// at 1x and 2x only).
-async function loadSource(scale: 1 | 2 | 3): Promise<Buffer> {
-  const w = 375 * scale;
-  const h = 144 * scale;
-  const exact = join(SOURCE_DIR, scale === 1 ? "strip.png" : `strip@${scale}x.png`);
-  try {
-    return await sharp(exact).toBuffer();
-  } catch {
-    const fallback = scale === 3
-      ? join(SOURCE_DIR, "strip@2x.png")
-      : join(SOURCE_DIR, "strip.png");
-    return sharp(fallback).resize(w, h, { kernel: "lanczos3" }).toBuffer();
-  }
 }
 
 async function emit(variant: Variant) {
@@ -111,25 +70,12 @@ async function emit(variant: Variant) {
 
   for (const { suffix, scale } of SCALES) {
     const outPath = join(dir, `strip${suffix}.png`);
-    const sourceBuf = await loadSource(scale as 1 | 2 | 3);
-
-    if (!variant.badge) {
-      await writeFile(outPath, sourceBuf);
-      console.log(`  ${variant.slug}@${scale}x → source unchanged`);
-      continue;
-    }
-
-    const overlay = Buffer.from(
-      buildBadgeSvg(variant.badge.text, variant.badge.stroke, scale as 1 | 2 | 3),
-    );
-    const buf = await sharp(sourceBuf)
-      .composite([{ input: overlay, blend: "over" }])
+    const svg = Buffer.from(buildStripSvg(variant.wordmark, scale));
+    const buf = await sharp(svg)
       .png({ palette: true, quality: 90, compressionLevel: 9 })
       .toBuffer();
     await writeFile(outPath, buf);
-    console.log(
-      `  ${variant.slug}@${scale}x → ${(buf.length / 1024).toFixed(1)}kb (badge: ${variant.badge.text})`,
-    );
+    console.log(`  ${variant.slug}@${scale}x → ${(buf.length / 1024).toFixed(1)}kb`);
   }
 }
 
