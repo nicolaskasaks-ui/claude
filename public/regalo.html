@@ -227,6 +227,18 @@
 
       .err { color: var(--error); font-size: 13px; min-height: 18px; margin-top: 12px; }
 
+      .check {
+        display: inline-flex; align-items: center; gap: 10px;
+        text-transform: none; letter-spacing: 0;
+        font-family: var(--sans); font-weight: 400;
+        font-size: 14px; color: var(--ink-soft);
+        cursor: pointer;
+      }
+      .check input[type="checkbox"] {
+        width: 16px; height: 16px; margin: 0;
+        accent-color: var(--ink);
+      }
+
       .status {
         padding: 24px;
         margin-bottom: 32px;
@@ -304,6 +316,12 @@
             <div class="field">
               <label for="message">Mensaje <span class="hint">(opcional, máx 280)</span></label>
               <textarea id="message" maxlength="280" placeholder="Lo que quieras decirle"></textarea>
+            </div>
+            <div class="field hide-amount-field">
+              <label class="check">
+                <input type="checkbox" id="hideAmount" />
+                <span>No mostrar el monto en su tarjeta</span>
+              </label>
             </div>
 
             <button type="submit" id="submit" class="primary">Pagar con Mercado Pago</button>
@@ -386,6 +404,7 @@
           recipientEmail: document.getElementById("recipientEmail").value.trim(),
           recipientWhatsapp: document.getElementById("recipientWhatsapp").value.trim() || undefined,
           message: document.getElementById("message").value.trim() || undefined,
+          hideAmount: document.getElementById("hideAmount").checked || undefined,
         };
 
         if (!body.senderName || !body.senderEmail || !body.recipientName || !body.recipientEmail) {

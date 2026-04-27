@@ -66,11 +66,17 @@ export async function walletRoutes(app: FastifyInstance) {
     const { giftCardId } = req.params as { giftCardId: string };
     const giftCard = await prisma.giftCard.findUniqueOrThrow({
       where: { id: giftCardId },
-      include: { tenant: true },
+      include: { tenant: true, purchase: true },
     });
     const buf = await buildGiftPass({
       tenant: giftCard.tenant,
       giftCard,
+      // Bring across the public-purchase metadata so the recipient sees
+      // who sent it, the optional message, and whether to hide the amount.
+      senderName: giftCard.purchase?.senderName,
+      recipientName: giftCard.purchase?.recipientName,
+      message: giftCard.purchase?.message ?? undefined,
+      hideAmount: giftCard.purchase?.hideAmount ?? false,
       publicHost: publicHost(req),
     });
     reply.header("Content-Type", "application/vnd.apple.pkpass");

@@ -53,6 +53,7 @@ const giftPurchaseBody = z.object({
   recipientEmail: z.string().email(),
   recipientWhatsapp: z.string().min(5).max(20).optional(),
   message: z.string().max(280).optional(),
+  hideAmount: z.boolean().optional(),
 });
 
 export async function publicRoutes(app: FastifyInstance) {
@@ -179,6 +180,7 @@ export async function publicRoutes(app: FastifyInstance) {
         recipientEmail: body.recipientEmail,
         recipientWhatsapp: body.recipientWhatsapp,
         message: body.message,
+        hideAmount: body.hideAmount ?? false,
         buyerCustomerId,
         mpPreferenceId: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         status: "PENDING",

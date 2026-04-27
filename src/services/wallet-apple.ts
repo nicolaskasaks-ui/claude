@@ -399,23 +399,26 @@ export async function buildGiftPass(args: {
   tenant: Tenant;
   giftCard: GiftCard;
   // Optional metadata supplied by a public purchase flow ("Regalá Chuí").
-  // Renders as a back field so the recipient sees who sent it and the note.
   senderName?: string;
   recipientName?: string;
   message?: string;
+  // When the buyer chooses "no mostrar el monto", we render the pass
+  // without the balance so the recipient can't tell what was paid for it.
+  // Staff can still look up the value internally.
+  hideAmount?: boolean;
   publicHost: string;
 }): Promise<Buffer> {
-  // Gift card pass intentionally has no strip image. Apple Wallet renders
-  // a strip in the same vertical area as primary fields, so including
-  // both produces an overlap (the balance "Saldo $50.000" stamps on top
-  // of the strip wordmark). For a gift card the prepaid balance is the
-  // hero of the card, so we keep the primary field and drop the strip.
-  const [certs, passAssets] = await Promise.all([
+  // Gift card pass uses the original Chuí strip image so it shares the
+  // visual identity of the loyalty pass. Balance + code go in the small
+  // header/secondary fields rather than as a primary hero, per Nico:
+  // smaller, no decimals, optionally hidden from the recipient.
+  const [certs, passAssets, stripAssets] = await Promise.all([
     loadCerts(),
     loadPassAssets(args.tenant.slug),
+    loadStripAssets(args.tenant.slug, null),
   ]);
 
-  const assets = passAssets;
+  const assets = { ...passAssets, ...stripAssets };
 
   const pass = new PKPass(assets, certs, {
     formatVersion: 1,
@@ -425,24 +428,32 @@ export async function buildGiftPass(args: {
     organizationName: args.tenant.name,
     description: `${args.tenant.name} · Tarjeta de regalo`,
     foregroundColor: "rgb(237,235,226)",
-    // Sampled directly from the original strip's dominant dark pixel
-    // (`rgb(16,40,24)`). Earlier the pass declared rgb(16,40,26) which
-    // is two units brighter on the blue channel — invisible alone but
-    // produced a visible seam between the strip image and the bands of
-    // the pass that iOS fills with backgroundColor. Matching exactly to
-    // the strip eliminates the patchwork.
     backgroundColor: "rgb(16,40,24)",
     labelColor: "rgb(237,235,226)",
   });
 
   pass.type = "storeCard";
+  // Money formatted without decimals — buyers don't think in centavos for
+  // gift cards and the small label area looks cleaner without the cents.
+  const balanceFormatted = new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: args.tenant.currency,
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+  }).format(args.giftCard.balance / 100);
+
   pass.headerFields.push({ key: "type", label: "Tipo", value: "Regalo" });
-  pass.primaryFields.push({
-    key: "balance",
-    label: "Saldo",
-    value: money(args.giftCard.balance, args.tenant.currency),
-    changeMessage: "Saldo: %@",
-  });
+  if (!args.hideAmount) {
+    // Render the balance in a secondary field so it sits in the small label
+    // band beneath the strip rather than as a primary hero. The hidden
+    // case omits it entirely so the recipient can't see what was paid.
+    pass.secondaryFields.push({
+      key: "balance",
+      label: "Saldo",
+      value: balanceFormatted,
+      changeMessage: "Saldo: %@",
+    });
+  }
   pass.secondaryFields.push({ key: "code", label: "Código", value: args.giftCard.code });
 
   if (args.message) {

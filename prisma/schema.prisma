@@ -421,6 +421,9 @@ model GiftCardPurchase {
   recipientEmail    String
   recipientWhatsapp String?
   message           String?
+  // When true, the recipient's wallet pass omits the balance so they can't
+  // see what was paid for the gift. Staff can still look it up internally.
+  hideAmount        Boolean @default(false)
   // If the buyer is already enrolled, we credit them with qualifying spend.
   buyerCustomerId   String?
   // Mercado Pago tracking. Preference is created up front; payment id is

@@ -1,0 +1,1 @@
+ALTER TABLE "GiftCardPurchase" ADD COLUMN "hideAmount" BOOLEAN NOT NULL DEFAULT false;
