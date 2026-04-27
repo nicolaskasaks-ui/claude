@@ -62,11 +62,24 @@
         text-wrap: pretty;
       }
       h1, h2, h3, .display, p.lead { text-wrap: balance; }
-      /* Per Chuí brand: Futura is reserved for bold uppercase only. Display
-         headings use Mabry Pro Light for the airy hero feel and Mabry Pro
-         Regular for in-panel headings. */
-      h1 { font-family: var(--sans); font-weight: 300; }
-      h2, h3, .display { font-family: var(--sans); font-weight: 400; }
+      /* Type hierarchy per brand:
+         H1 → Futura Bold UPPERCASE (big display)
+         H2/H3 → Mabry Pro Bold UPPERCASE
+         Lead → Mabry Pro Light
+         Body, labels → Mabry Pro Regular
+         The word "Chuí" never gets typeset at display size; the hero copy
+         is shaped to keep it out of H1. */
+      h1 {
+        font-family: var(--display);
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      h2, h3, .display {
+        font-family: var(--sans);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
       .eyebrow {
         font-family: var(--display);
         font-size: 11px;
@@ -117,16 +130,16 @@
       .hero { margin-bottom: 56px; }
       .hero .eyebrow { margin-bottom: 18px; }
       .hero h1 {
-        font-size: clamp(40px, 7vw, 64px);
-        font-weight: 400;
-        line-height: 1.02;
-        letter-spacing: -0.02em;
-        margin: 0 0 20px;
+        font-size: clamp(44px, 8vw, 72px);
+        line-height: 1.0;
+        letter-spacing: 0.02em;
+        margin: 0 0 24px;
       }
-      .hero h1 em, .hero h1 strong { font-style: normal; font-weight: 700; }
       .hero p.lead {
-        font-size: 17px;
-        line-height: 1.55;
+        font-family: var(--sans);
+        font-weight: 300;
+        font-size: 18px;
+        line-height: 1.5;
         max-width: 52ch;
         color: var(--ink-soft);
         margin: 0;
@@ -139,12 +152,13 @@
         padding: 40px 36px;
       }
       .panel h2 {
-        font-size: 22px;
-        font-weight: 500;
-        margin: 0 0 6px;
-        letter-spacing: -0.01em;
+        font-size: 14px;
+        margin: 0 0 12px;
+        letter-spacing: 0.16em;
       }
       .panel .panel-sub {
+        font-family: var(--sans);
+        font-weight: 400;
         font-size: 14px;
         color: var(--muted);
         margin: 0 0 28px;
@@ -161,7 +175,7 @@
         text-transform: uppercase;
         color: var(--ink-soft);
         margin: 0 0 8px;
-        font-weight: 500;
+        font-weight: 400;
       }
       input, select {
         width: 100%;
@@ -214,7 +228,7 @@
         padding: 18px 24px;
         font-family: var(--sans);
         font-size: 12px;
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: 0.18em;
         text-transform: uppercase;
         background: var(--ink);
@@ -252,10 +266,13 @@
       .form-wrap.done { display: none; }
 
       .result h2 {
-        font-size: 36px;
-        font-weight: 400;
-        letter-spacing: -0.02em;
-        margin: 0 0 8px;
+        font-family: var(--display);
+        font-weight: 700;
+        text-transform: uppercase;
+        font-size: clamp(36px, 6vw, 52px);
+        letter-spacing: 0.02em;
+        line-height: 1.05;
+        margin: 0 0 16px;
       }
       .result h2 em, .result h2 strong { font-style: normal; font-weight: 700; }
       .result p.lead {
@@ -277,7 +294,7 @@
         padding: 18px;
         font-family: var(--sans);
         font-size: 13px;
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: 0.06em;
         text-decoration: none;
         border: 1px solid var(--ink);
@@ -320,7 +337,7 @@
       <main>
         <section class="hero">
           <div class="eyebrow">Programa de fidelidad</div>
-          <h1>Sumate al<br /><em>círculo</em> de Chuí.</h1>
+          <h1>Sumate<br/>al círculo.</h1>
           <p class="lead">Una tarjeta digital para tu wallet.</p>
           <p class="lead">Acumulás puntos en cada visita y accedés a beneficios reservados para amigos del restaurante.</p>
         </section>
@@ -365,7 +382,7 @@
 
         <section class="panel result" id="result">
           <div class="eyebrow" style="margin-bottom: 14px">Tarjeta lista</div>
-          <h2>Bienvenide<br /><em>al círculo.</em></h2>
+          <h2>Bienvenide<br/>al círculo.</h2>
           <p class="lead">Agregá tu tarjeta al wallet del celular. Mostrala en el restaurante y vamos sumando puntos en cada visita.</p>
           <div class="wallet-stack">
             <a class="wallet-btn" id="appleLink" target="_blank" rel="noopener">Agregar a Apple Wallet</a>

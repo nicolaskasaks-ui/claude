@@ -63,10 +63,25 @@
         text-wrap: pretty;
       }
       h1, h2, h3, p.lead { text-wrap: balance; }
-      /* Display: Mabry Pro Light at large size for hero, body weight for h2/h3.
-         Per Chuí brand: Futura is reserved for bold uppercase only — see eyebrow. */
-      h1 { font-family: var(--sans); font-weight: 300; }
-      h2, h3 { font-family: var(--sans); font-weight: 400; }
+      /* Type hierarchy per brand:
+         H1 → Futura Bold UPPERCASE (big display)
+         H2/H3 → Mabry Pro Bold UPPERCASE (sub-sections)
+         Lead → Mabry Pro Light (airy)
+         Body, labels, fine print → Mabry Pro Regular
+         Button → Mabry Pro Bold UPPERCASE
+         Note: "Chuí" never gets typeset large — see brand rules. The hero
+         copy is reworded to avoid that pitfall. */
+      h1 {
+        font-family: var(--display);
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      h2, h3 {
+        font-family: var(--sans);
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
       .eyebrow {
         font-family: var(--display);
         font-size: 11px; letter-spacing: 0.18em;
@@ -97,16 +112,15 @@
 
       .hero { margin-bottom: 48px; }
       .hero h1 {
-        font-size: clamp(36px, 6.4vw, 56px);
-        font-weight: 300;
-        line-height: 1.04; letter-spacing: -0.015em;
-        margin: 18px 0 16px;
+        font-size: clamp(44px, 8vw, 72px);
+        line-height: 1.0;
+        letter-spacing: 0.02em;
+        margin: 18px 0 24px;
       }
-      /* Chuí brand: never italic. The "Chuí" word is set as a Mabry Pro Bold
-         accent inside the hero, not as a logo (would require an image). */
-      .hero h1 strong { font-weight: 700; font-style: normal; }
       .hero p.lead {
-        font-size: 17px; line-height: 1.55;
+        font-family: var(--sans);
+        font-weight: 300;
+        font-size: 18px; line-height: 1.5;
         max-width: 52ch; color: var(--ink-soft); margin: 0;
       }
 
@@ -116,10 +130,12 @@
         padding: 40px 36px;
       }
       .panel h2 {
-        font-size: 22px; font-weight: 500; margin: 0 0 6px;
-        letter-spacing: -0.01em;
+        font-size: 14px; margin: 0 0 12px;
+        letter-spacing: 0.16em;
       }
       .panel .panel-sub {
+        font-family: var(--sans);
+        font-weight: 400;
         font-size: 14px; color: var(--muted); margin: 0 0 28px;
       }
 
@@ -138,7 +154,7 @@
         padding: 16px 8px;
         font-family: var(--sans);
         font-size: 14px;
-        font-weight: 500;
+        font-weight: 400;
         color: var(--ink);
         cursor: pointer;
         transition: all 0.15s ease;
@@ -150,7 +166,7 @@
         padding: 16px 0;
         font-size: 18px;
         font-family: var(--sans);
-        font-weight: 500;
+        font-weight: 400;
         color: var(--ink);
         background: transparent;
         border: 0;
@@ -165,11 +181,16 @@
       form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
       @media (max-width: 520px) { form .row { grid-template-columns: 1fr; gap: 0; } }
       label {
-        display: block; font-size: 11px;
+        display: block;
+        font-family: var(--sans); font-weight: 400;
+        font-size: 11px;
         letter-spacing: 0.14em; text-transform: uppercase;
-        color: var(--ink-soft); margin: 0 0 8px; font-weight: 500;
+        color: var(--ink-soft); margin: 0 0 8px;
       }
-      label .hint { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 400; }
+      label .hint {
+        text-transform: none; letter-spacing: 0;
+        color: var(--muted); font-weight: 400;
+      }
       input, textarea {
         width: 100%; padding: 12px 0;
         font-size: 16px; font-family: var(--sans);
@@ -184,17 +205,18 @@
 
       .section-title {
         margin: 32px 0 18px;
+        font-family: var(--display);
+        font-weight: 700;
         font-size: 11px;
-        letter-spacing: 0.16em;
+        letter-spacing: 0.18em;
         text-transform: uppercase;
         color: var(--ink-soft);
-        font-weight: 500;
       }
 
       button.primary {
         display: inline-flex; align-items: center; justify-content: center;
         gap: 8px; width: 100%; margin-top: 16px; padding: 18px 24px;
-        font-family: var(--sans); font-size: 12px; font-weight: 600;
+        font-family: var(--sans); font-size: 12px; font-weight: 700;
         letter-spacing: 0.18em; text-transform: uppercase;
         background: var(--ink); color: var(--ink-on-dark);
         border: 1px solid var(--ink); cursor: pointer;
@@ -230,8 +252,8 @@
       <main>
         <section class="hero">
           <p class="eyebrow">Tarjeta de regalo</p>
-          <h1>Regalá <strong>Chuí</strong>.</h1>
-          <p class="lead">Una cena al fuego, una copa, lo que se le ocurra a quien la reciba. La tarjeta llega al wallet de su celular y la usa cuando quiera.</p>
+          <h1>Regalá una<br/>cena al fuego.</h1>
+          <p class="lead">La tarjeta llega al wallet del celular de quien elijas. La usa cuando quiera, en una visita o en varias, hasta agotarla.</p>
         </section>
 
         <div id="status" class="status" hidden></div>
