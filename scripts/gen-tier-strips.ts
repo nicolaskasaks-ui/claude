@@ -28,29 +28,32 @@ const WHITE = "#FFFFFF";
 type Variant = {
   slug: string;
   outDir: string;
-  text: string;
-  // Solid fill for the badge — what differentiates the three tiers.
-  fill: string;
+  // Null badge = no stamp (used for the gift pass which only needs the
+  // chroma-keyed transparent strip, no tier label).
+  badge: { text: string; fill: string } | null;
 };
 
 const VARIANTS: Variant[] = [
   {
+    // Used by the gift card pass; transparent strip with no badge.
+    slug: "default",
+    outDir: "assets/passes/chui/strips/default",
+    badge: null,
+  },
+  {
     slug: "silver",
     outDir: "assets/passes/chui/strips/silver",
-    text: "SILVER",
-    fill: "#8A8F95", // muted slate
+    badge: { text: "SILVER", fill: "#8A8F95" }, // muted slate
   },
   {
     slug: "gold",
     outDir: "assets/passes/chui/strips/gold",
-    text: "GOLD",
-    fill: "#B8893E", // warm gold
+    badge: { text: "GOLD", fill: "#B8893E" }, // warm gold
   },
   {
     slug: "platinum",
     outDir: "assets/passes/chui/strips/platinum",
-    text: "PLATINUM",
-    fill: "#C4622A", // deep ember
+    badge: { text: "PLATINUM", fill: "#C4622A" }, // deep ember
   },
 ];
 
@@ -107,6 +110,43 @@ async function loadSource(scale: 1 | 2 | 3): Promise<Buffer> {
   }
 }
 
+// Chroma-keys the dark green background out of the source strip so the
+// pass.json backgroundColor shows through. This is the cleanest fix for
+// the visible seam between the strip and the bands of the pass that iOS
+// fills with backgroundColor (which has a subtle vertical gradient that
+// a flat strip image can't match).
+//
+// Approach: pixels close to the brand-green sample are made fully
+// transparent; everything else (the cream wordmark, the multilingual
+// labels) keeps its alpha at 100%. Using Euclidean RGB distance instead
+// of plain luminance keeps the darker cream Cyrillic / Arabic / CJK
+// labels intact (they'd fail a flat luminance test).
+const KEY_R = 16;
+const KEY_G = 40;
+const KEY_B = 24;
+const KEY_TOLERANCE = 36; // empirically: erases the green field, preserves cream
+const KEY_SQUARED = KEY_TOLERANCE * KEY_TOLERANCE;
+
+async function chromaKeyGreen(srcBuf: Buffer): Promise<Buffer> {
+  const { data, info } = await sharp(srcBuf)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  for (let i = 0; i < data.length; i += info.channels) {
+    const dr = data[i] - KEY_R;
+    const dg = data[i + 1] - KEY_G;
+    const db = data[i + 2] - KEY_B;
+    if (dr * dr + dg * dg + db * db < KEY_SQUARED) {
+      data[i + 3] = 0;
+    }
+  }
+  return sharp(data, {
+    raw: { width: info.width, height: info.height, channels: 4 },
+  })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
+
 async function emit(variant: Variant) {
   const dir = join(ROOT, variant.outDir);
   await mkdir(dir, { recursive: true });
@@ -114,15 +154,24 @@ async function emit(variant: Variant) {
   for (const { suffix, scale } of SCALES) {
     const outPath = join(dir, `strip${suffix}.png`);
     const sourceBuf = await loadSource(scale as 1 | 2 | 3);
-    const overlay = Buffer.from(buildBadgeSvg(variant.text, variant.fill, scale as 1 | 2 | 3));
-    const buf = await sharp(sourceBuf)
-      .composite([{ input: overlay, blend: "over" }])
-      .png({ palette: true, quality: 90, compressionLevel: 9 })
-      .toBuffer();
+    // Chroma-key the green field so iOS shows backgroundColor through
+    // the strip — eliminates the seam between strip and pass bands.
+    const keyedStrip = await chromaKeyGreen(sourceBuf);
+    const layers: sharp.OverlayOptions[] = [];
+    if (variant.badge) {
+      layers.push({
+        input: Buffer.from(buildBadgeSvg(variant.badge.text, variant.badge.fill, scale as 1 | 2 | 3)),
+        blend: "over",
+      });
+    }
+    const buf = layers.length
+      ? await sharp(keyedStrip).composite(layers).png({ compressionLevel: 9 }).toBuffer()
+      : keyedStrip;
     await writeFile(outPath, buf);
-    console.log(
-      `  ${variant.slug}@${scale}x → ${(buf.length / 1024).toFixed(1)}kb (badge ${variant.text} on ${variant.fill})`,
-    );
+    const tag = variant.badge
+      ? `badge ${variant.badge.text} on ${variant.badge.fill}`
+      : "no badge";
+    console.log(`  ${variant.slug}@${scale}x → ${(buf.length / 1024).toFixed(1)}kb (${tag}, transparent bg)`);
   }
 }
 

@@ -415,7 +415,10 @@ export async function buildGiftPass(args: {
   const [certs, passAssets, stripAssets] = await Promise.all([
     loadCerts(),
     loadPassAssets(args.tenant.slug),
-    loadStripAssets(args.tenant.slug, null),
+    // Use the chroma-keyed default strip (no tier badge) so the gift pass
+    // shares the loyalty visual identity but with a transparent background
+    // — iOS fills the strip area with the pass backgroundColor, no seam.
+    loadStripAssets(args.tenant.slug, "strips/default"),
   ]);
 
   const assets = { ...passAssets, ...stripAssets };
@@ -442,18 +445,16 @@ export async function buildGiftPass(args: {
     minimumFractionDigits: 0,
   }).format(args.giftCard.balance / 100);
 
-  pass.headerFields.push({ key: "type", label: "Tipo", value: "Regalo" });
-  if (!args.hideAmount) {
-    // Render the balance in a secondary field so it sits in the small label
-    // band beneath the strip rather than as a primary hero. The hidden
-    // case omits it entirely so the recipient can't see what was paid.
-    pass.secondaryFields.push({
-      key: "balance",
-      label: "Saldo",
-      value: balanceFormatted,
-      changeMessage: "Saldo: %@",
-    });
-  }
+  pass.headerFields.push({ key: "type", label: "Tipo", value: "Gift Card" });
+  // The balance is always rendered, but when the buyer chose "no mostrar
+  // el monto" we substitute the literal amount with "Importe sorpresa".
+  // Staff still sees the real balance in admin and at the till.
+  pass.secondaryFields.push({
+    key: "balance",
+    label: "Saldo",
+    value: args.hideAmount ? "Importe sorpresa" : balanceFormatted,
+    changeMessage: "Saldo: %@",
+  });
   pass.secondaryFields.push({ key: "code", label: "Código", value: args.giftCard.code });
 
   if (args.message) {
