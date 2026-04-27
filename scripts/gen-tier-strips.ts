@@ -175,7 +175,29 @@ async function emit(variant: Variant) {
   }
 }
 
+// The logo (CH monogram) and icon ship with their own dark-green
+// background baked in. iOS renders these on the pass with backgroundColor
+// underneath, which produced the visible "patch" Nico spotted above the
+// monogram — same root cause as the strip seam. Chroma-key both so the
+// pass color shows through and the field reads as one uniform green.
+async function chromaKeyAsset(filename: string) {
+  const path = join(SOURCE_DIR, filename);
+  try {
+    const src = await sharp(path).toBuffer();
+    const keyed = await chromaKeyGreen(src);
+    await writeFile(path, keyed);
+    console.log(`  ${filename} → ${(keyed.length / 1024).toFixed(1)}kb (chroma-keyed in place)`);
+  } catch (err) {
+    console.log(`  ${filename} → skipped (${(err as Error).message})`);
+  }
+}
+
 async function main() {
+  console.log("Pass-level assets (logo + icon):");
+  for (const f of ["logo.png", "logo@2x.png", "icon.png", "icon@2x.png"]) {
+    await chromaKeyAsset(f);
+  }
+
   for (const v of VARIANTS) {
     console.log(`Variant ${v.slug}:`);
     await emit(v);
