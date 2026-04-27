@@ -32,6 +32,9 @@ const updateTenantBody = z.object({
   brandColor: z.string().regex(/^#?[0-9a-fA-F]{6}$/).optional(),
   logoUrl: z.string().url().nullable().optional(),
   currency: z.string().length(3).optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+  relevantText: z.string().max(140).nullable().optional(),
 });
 
 export async function adminRoutes(app: FastifyInstance) {
@@ -150,6 +153,9 @@ export async function adminRoutes(app: FastifyInstance) {
           : {}),
         ...(body.logoUrl !== undefined ? { logoUrl: body.logoUrl } : {}),
         ...(body.currency !== undefined ? { currency: body.currency.toUpperCase() } : {}),
+        ...(body.latitude !== undefined ? { latitude: body.latitude } : {}),
+        ...(body.longitude !== undefined ? { longitude: body.longitude } : {}),
+        ...(body.relevantText !== undefined ? { relevantText: body.relevantText } : {}),
       },
     });
   });

@@ -102,6 +102,29 @@ export async function campaignRoutes(app: FastifyInstance) {
     },
   );
 
+  // Clone any campaign (including SENT ones) into a fresh DRAFT so staff can
+  // re-send the same content without re-typing. Useful for recurring promos.
+  app.post(
+    "/v1/campaigns/:id/duplicate",
+    { onRequest: [requireRole("OWNER", "MANAGER")] },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const tenantId = req.staff!.tenantId;
+      const original = await prisma.campaign.findFirstOrThrow({
+        where: { id, tenantId },
+      });
+      return prisma.campaign.create({
+        data: {
+          tenantId,
+          title: original.title,
+          message: original.message,
+          targetTierRanks: original.targetTierRanks,
+          status: "DRAFT",
+        },
+      });
+    },
+  );
+
   app.delete(
     "/v1/campaigns/:id",
     { onRequest: [requireRole("OWNER", "MANAGER")] },

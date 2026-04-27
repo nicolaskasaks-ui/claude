@@ -119,6 +119,18 @@ export async function buildLoyaltyPass(args: {
   // fields (the strip image occupies that space). Tier is intentionally not
   // displayed on the pass — the program is points-first; tier perks (if any)
   // apply at the till but don't change how the card looks.
+  // If the tenant has a venue lat/lng configured, attach a `locations` entry
+  // so iOS pops the pass on the lock screen when the user enters the area.
+  // relevantText is what shows up in the suggestion. iOS uses ~100m radius.
+  const venueLocation =
+    args.tenant.latitude != null && args.tenant.longitude != null
+      ? [{
+          latitude: args.tenant.latitude,
+          longitude: args.tenant.longitude,
+          relevantText: args.tenant.relevantText || `Estás cerca de ${args.tenant.name}`,
+        }]
+      : undefined;
+
   const pass = new PKPass(assets, certs, {
     formatVersion: 1,
     passTypeIdentifier: env.APPLE_PASS_TYPE_IDENTIFIER!,
@@ -131,6 +143,7 @@ export async function buildLoyaltyPass(args: {
     labelColor: "rgb(237,235,226)",
     webServiceURL: `${args.publicHost}/v1/wallet/apple`,
     authenticationToken: args.card.id,
+    ...(venueLocation ? { locations: venueLocation } : {}),
   });
 
   pass.type = "storeCard";

@@ -13,6 +13,14 @@ const createCustomerBody = z.object({
   issueCard: z.boolean().default(true),
 });
 
+const patchCustomerBody = z.object({
+  email: z.string().email().nullable().optional(),
+  phone: z.string().min(5).nullable().optional(),
+  firstName: z.string().nullable().optional(),
+  lastName: z.string().nullable().optional(),
+  birthDate: z.string().datetime().nullable().optional(),
+});
+
 export async function customerRoutes(app: FastifyInstance) {
   app.addHook("onRequest", requireStaff);
 
@@ -40,6 +48,25 @@ export async function customerRoutes(app: FastifyInstance) {
     return prisma.customer.findFirstOrThrow({
       where: { id, tenantId: req.staff!.tenantId },
       include: { cards: { include: { tier: true } }, giftCards: true },
+    });
+  });
+
+  app.patch("/v1/customers/:id", async (req) => {
+    const { id } = req.params as { id: string };
+    const tenantId = req.staff!.tenantId;
+    await prisma.customer.findFirstOrThrow({ where: { id, tenantId } });
+    const body = patchCustomerBody.parse(req.body);
+    return prisma.customer.update({
+      where: { id },
+      data: {
+        ...(body.email !== undefined ? { email: body.email } : {}),
+        ...(body.phone !== undefined ? { phone: body.phone } : {}),
+        ...(body.firstName !== undefined ? { firstName: body.firstName } : {}),
+        ...(body.lastName !== undefined ? { lastName: body.lastName } : {}),
+        ...(body.birthDate !== undefined
+          ? { birthDate: body.birthDate ? new Date(body.birthDate) : null }
+          : {}),
+      },
     });
   });
 

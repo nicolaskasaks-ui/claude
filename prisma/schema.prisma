@@ -28,6 +28,12 @@ model Tenant {
   currency    String   @default("USD")
   // Period over which we evaluate tier qualification (in days). 365 = airline-style annual.
   tierPeriodDays Int   @default(365)
+  // Geo-trigger for the wallet pass: when set, iOS surfaces the pass on the
+  // lock screen as the user gets near the venue (Significant Location event).
+  // No APNs needed — iOS evaluates locally.
+  latitude     Float?
+  longitude    Float?
+  relevantText String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
