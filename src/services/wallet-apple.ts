@@ -169,6 +169,18 @@ export async function buildLoyaltyPass(args: {
   }
   pass.backFields.push(
     {
+      key: "web",
+      label: "Web",
+      value: "https://chui.com.ar",
+      attributedValue: '<a href="https://chui.com.ar">chui.com.ar</a>',
+    },
+    {
+      key: "whatsapp",
+      label: "WhatsApp",
+      value: "+1 415 969 2279",
+      attributedValue: '<a href="https://wa.me/14159692279">+1 415 969 2279</a>',
+    },
+    {
       key: "instagram",
       label: "Instagram",
       value: "https://www.instagram.com/chui.ba/",
