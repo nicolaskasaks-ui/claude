@@ -37,17 +37,18 @@ model Tenant {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  locations    Location[]
-  staff        StaffUser[]
-  customers    Customer[]
-  tiers        Tier[]
-  rewards      Reward[]
-  cards        LoyaltyCard[]
-  giftCards    GiftCard[]
-  transactions Transaction[]
-  terminals    Terminal[]
-  campaigns    Campaign[]
-  events       Event[]
+  locations         Location[]
+  staff             StaffUser[]
+  customers         Customer[]
+  tiers             Tier[]
+  rewards           Reward[]
+  cards             LoyaltyCard[]
+  giftCards         GiftCard[]
+  giftCardPurchases GiftCardPurchase[]
+  transactions      Transaction[]
+  terminals         Terminal[]
+  campaigns         Campaign[]
+  events            Event[]
 }
 
 model Location {
@@ -108,11 +109,12 @@ model Customer {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  cards        LoyaltyCard[]
-  giftCards    GiftCard[]
-  transactions Transaction[]
-  rewards      Reward[]
+  tenant            Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cards             LoyaltyCard[]
+  giftCards         GiftCard[]
+  transactions      Transaction[]
+  rewards           Reward[]
+  giftCardPurchases GiftCardPurchase[]
 
   @@unique([tenantId, email])
   @@unique([tenantId, phone])
@@ -380,12 +382,63 @@ model GiftCard {
   issuedAt      DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer     Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
   transactions Transaction[]
+  purchase     GiftCardPurchase?
 
   @@index([tenantId])
   @@index([customerId])
+}
+
+// ---------------------------------------------------------------------------
+// GiftCardPurchase = intent record for a public-facing online purchase of a
+// gift card. Created when the buyer submits the form on /regalo, enriched
+// with the Mercado Pago preference id, and finalized when the payment
+// webhook confirms the charge — at which point we issue the actual GiftCard
+// and link it back here. Keeping payment tracking separate from the gift
+// card itself means staff-issued gift cards (no online buyer) stay simple.
+// ---------------------------------------------------------------------------
+enum GiftCardPurchaseStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model GiftCardPurchase {
+  id                String                 @id @default(cuid())
+  tenantId          String
+  // Linked once payment confirms and we issue the GiftCard.
+  giftCardId        String?                @unique
+  amountCents       Int
+  // Buyer details (always required from the form).
+  senderName        String
+  senderEmail       String
+  // Recipient details. Email is required so we can deliver the wallet pass;
+  // WhatsApp is an optional bonus channel for AR / LATAM customers.
+  recipientName     String
+  recipientEmail    String
+  recipientWhatsapp String?
+  message           String?
+  // If the buyer is already enrolled, we credit them with qualifying spend.
+  buyerCustomerId   String?
+  // Mercado Pago tracking. Preference is created up front; payment id is
+  // populated by the webhook once a successful charge happens.
+  mpPreferenceId    String                 @unique
+  mpPaymentId       String?                @unique
+  status            GiftCardPurchaseStatus @default(PENDING)
+  paidAt            DateTime?
+  emailSentAt       DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  giftCard      GiftCard? @relation(fields: [giftCardId], references: [id], onDelete: SetNull)
+  buyerCustomer Customer? @relation(fields: [buyerCustomerId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, status])
+  @@index([buyerCustomerId])
 }
 
 // ---------------------------------------------------------------------------

@@ -2,7 +2,16 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { issueCard } from "../services/loyalty.js";
+import { issueGiftCard } from "../services/gift-cards.js";
+import {
+  createGiftCardPreference,
+  fetchPayment,
+  isMercadoPagoConfigured,
+  verifyWebhookSignature,
+} from "../services/mercado-pago.js";
+import { sendGiftCardEmail, sendGiftCardReceiptEmail } from "../services/email.js";
 import { BadRequest, NotFound } from "../lib/errors.js";
+import { env } from "../lib/env.js";
 import { requireStaff } from "../middleware/auth.js";
 
 // Public, unauthenticated endpoints used by the customer-facing enrollment
@@ -30,6 +39,20 @@ const enrollBody = z.object({
   referredByCode: z.string().min(3).max(20).optional(),
 }).refine((d) => d.email || d.phone, {
   message: "email or phone is required",
+});
+
+// Public gift card purchase — validation guards. Amounts are in minor
+// units (cents). We cap at $5M ARS = 500.000.000 cents to avoid garbage
+// inputs; legitimate purchases above that go through staff issuance.
+const giftPurchaseBody = z.object({
+  tenantSlug: z.string().min(1),
+  amountCents: z.number().int().min(500_000).max(500_000_000),
+  senderName: z.string().min(1).max(80),
+  senderEmail: z.string().email(),
+  recipientName: z.string().min(1).max(80),
+  recipientEmail: z.string().email(),
+  recipientWhatsapp: z.string().min(5).max(20).optional(),
+  message: z.string().max(280).optional(),
 });
 
 export async function publicRoutes(app: FastifyInstance) {
@@ -118,6 +141,193 @@ export async function publicRoutes(app: FastifyInstance) {
       googleWalletUrl: `/v1/wallet/loyalty/${card.id}/google`,
       alreadyEnrolled: false,
     });
+  });
+
+  // ----- Public gift card purchase (Sprint 1 of Commerce module) -----
+
+  // Buyer fills out the /regalo form. We persist their intent, create an
+  // MP Preference, and return the redirect URL. The actual GiftCard is
+  // not minted yet — that happens when the MP webhook confirms payment.
+  app.post("/v1/public/gift-cards/purchase", async (req, reply) => {
+    if (!isMercadoPagoConfigured()) {
+      throw BadRequest("Mercado Pago no está configurado todavía");
+    }
+    const body = giftPurchaseBody.parse(req.body);
+    const tenant = await prisma.tenant.findUnique({ where: { slug: body.tenantSlug } });
+    if (!tenant) throw NotFound("Tenant not found");
+
+    // If the buyer is already enrolled (lookup by email), link the purchase
+    // so we can later credit qualifying spend toward their tier.
+    let buyerCustomerId: string | null = null;
+    if (body.senderEmail) {
+      const buyer = await prisma.customer.findFirst({
+        where: { tenantId: tenant.id, email: body.senderEmail },
+      });
+      buyerCustomerId = buyer?.id ?? null;
+    }
+
+    // Persist the intent first so we have a stable id for the MP external
+    // reference. We use a placeholder mpPreferenceId we'll update right
+    // after the create call returns.
+    const purchase = await prisma.giftCardPurchase.create({
+      data: {
+        tenantId: tenant.id,
+        amountCents: body.amountCents,
+        senderName: body.senderName,
+        senderEmail: body.senderEmail,
+        recipientName: body.recipientName,
+        recipientEmail: body.recipientEmail,
+        recipientWhatsapp: body.recipientWhatsapp,
+        message: body.message,
+        buyerCustomerId,
+        mpPreferenceId: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        status: "PENDING",
+      },
+    });
+
+    const baseUrl = env.PUBLIC_BASE_URL;
+    const pref = await createGiftCardPreference({
+      purchase,
+      currency: tenant.currency,
+      tenantName: tenant.name,
+      baseUrl,
+    });
+
+    await prisma.giftCardPurchase.update({
+      where: { id: purchase.id },
+      data: { mpPreferenceId: pref.preferenceId },
+    });
+
+    return reply.send({
+      purchaseId: purchase.id,
+      initPoint: pref.initPoint,
+      sandboxInitPoint: pref.sandboxInitPoint,
+    });
+  });
+
+  // Mercado Pago notification endpoint. Called every time a payment for one
+  // of our preferences transitions state. We verify the signature, look up
+  // the payment, and if it's approved we mint the gift card and send the
+  // emails. Idempotent: re-receiving the same payment id is a no-op.
+  app.post("/v1/public/mp/webhook", async (req, reply) => {
+    const sig = req.headers["x-signature"];
+    const reqId = req.headers["x-request-id"];
+    const query = req.query as { type?: string; "data.id"?: string; id?: string };
+    const dataId = query["data.id"] || query.id;
+
+    const verification = verifyWebhookSignature({
+      signatureHeader: typeof sig === "string" ? sig : undefined,
+      requestIdHeader: typeof reqId === "string" ? reqId : undefined,
+      dataId,
+    });
+    if (!verification.ok) {
+      // eslint-disable-next-line no-console
+      console.warn(`[mp:webhook] rejected: ${verification.reason}`);
+      return reply.code(401).send({ error: "invalid signature" });
+    }
+
+    // We only care about payment notifications — MP also sends merchant
+    // order events that we ignore.
+    if (query.type && query.type !== "payment") {
+      return reply.code(200).send({ skipped: true });
+    }
+    if (!dataId) return reply.code(400).send({ error: "missing data.id" });
+
+    const payment = await fetchPayment(dataId);
+    if (!payment.externalReference) {
+      return reply.code(200).send({ skipped: "no external reference" });
+    }
+
+    const purchase = await prisma.giftCardPurchase.findUnique({
+      where: { id: payment.externalReference },
+      include: { tenant: true, buyerCustomer: true, giftCard: true },
+    });
+    if (!purchase) return reply.code(404).send({ error: "purchase not found" });
+
+    // Idempotency: already issued — done.
+    if (purchase.status === "PAID" && purchase.giftCardId) {
+      return reply.code(200).send({ alreadyProcessed: true });
+    }
+
+    // Defense in depth: verify the payment amount matches the purchase
+    // amount (in case someone tampered with the MP checkout).
+    if (Math.abs(payment.amountCents - purchase.amountCents) > 1) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[mp:webhook] amount mismatch purchase=${purchase.id} expected=${purchase.amountCents} got=${payment.amountCents}`,
+      );
+      await prisma.giftCardPurchase.update({
+        where: { id: purchase.id },
+        data: { status: "FAILED", mpPaymentId: String(payment.id) },
+      });
+      return reply.code(409).send({ error: "amount mismatch" });
+    }
+
+    // Only "approved" should mint a gift card. Other statuses (rejected,
+    // cancelled, in_process, refunded) just update bookkeeping and stop.
+    if (payment.status !== "approved") {
+      await prisma.giftCardPurchase.update({
+        where: { id: purchase.id },
+        data: {
+          status: payment.status === "refunded" ? "REFUNDED" : "FAILED",
+          mpPaymentId: String(payment.id),
+        },
+      });
+      return reply.code(200).send({ status: payment.status });
+    }
+
+    // All clear — mint the gift card.
+    const giftCard = await issueGiftCard({
+      tenantId: purchase.tenantId,
+      initialAmountCents: purchase.amountCents,
+      customerId: purchase.buyerCustomerId ?? undefined,
+    });
+
+    await prisma.giftCardPurchase.update({
+      where: { id: purchase.id },
+      data: {
+        status: "PAID",
+        paidAt: new Date(),
+        mpPaymentId: String(payment.id),
+        giftCardId: giftCard.id,
+      },
+    });
+
+    // Best-effort emails. Failures here don't roll back the gift card —
+    // staff can manually resend from admin if Resend is down.
+    const baseUrl = env.PUBLIC_BASE_URL;
+    const amountFormatted = new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency: purchase.tenant.currency,
+    }).format(purchase.amountCents / 100);
+    try {
+      await sendGiftCardEmail({
+        recipientName: purchase.recipientName,
+        recipientEmail: purchase.recipientEmail,
+        senderName: purchase.senderName,
+        message: purchase.message,
+        amountFormatted,
+        appleWalletUrl: `${baseUrl}/v1/wallet/gift/${giftCard.id}/apple`,
+        googleWalletUrl: `${baseUrl}/v1/wallet/gift/${giftCard.id}/google`,
+        tenantName: purchase.tenant.name,
+      });
+      await sendGiftCardReceiptEmail({
+        buyerName: purchase.senderName,
+        buyerEmail: purchase.senderEmail,
+        recipientName: purchase.recipientName,
+        amountFormatted,
+        tenantName: purchase.tenant.name,
+      });
+      await prisma.giftCardPurchase.update({
+        where: { id: purchase.id },
+        data: { emailSentAt: new Date() },
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error(`[mp:webhook] email send failed for purchase=${purchase.id}`, err);
+    }
+
+    return reply.code(200).send({ ok: true, giftCardId: giftCard.id });
   });
 
   // Public lookup of a tenant's tiers, for showing the customer what they

@@ -36,10 +36,12 @@
     "googleapis": "^140.0.1",
     "ioredis": "^5.4.1",
     "jose": "^5.6.3",
+    "mercadopago": "^2.12.0",
     "nanoid": "^5.0.7",
     "passkit-generator": "^3.3.1",
     "pino": "^9.3.2",
     "prisma": "^5.18.0",
+    "resend": "^6.12.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {

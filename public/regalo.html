@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Regalá Chuí</title>
+    <style>
+      /* Same typography stack as chui.com.ar: Futura Bold for display
+         (always uppercase per brand rules), Mabry Pro for everything else. */
+      @font-face {
+        font-family: "Futura";
+        src: url("/fonts/Futura_Bold.ttf") format("truetype");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Mabry Pro";
+        src: url("/fonts/MabryPro_Light.otf") format("opentype");
+        font-weight: 300;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Mabry Pro";
+        src: url("/fonts/MabryPro_Regular.otf") format("opentype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "Mabry Pro";
+        src: url("/fonts/MabryPro_Bold.otf") format("opentype");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      :root {
+        --bg: #EDEBE2;
+        --surface: #FFFFFF;
+        --ink: #10281A;
+        --ink-soft: #2C4030;
+        --ink-on-dark: #EDEBE2;
+        --muted: #7A7868;
+        --line: #D4D0C0;
+        --line-strong: rgba(16, 40, 26, 0.18);
+        --ember: #C4622A;
+        --error: #8B2E2E;
+        --success: #1F5F3A;
+        --display: "Futura", "Futura PT", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        --sans: "Mabry Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: var(--sans);
+        background: var(--bg);
+        color: var(--ink);
+        min-height: 100vh;
+        font-feature-settings: "ss01", "cv11";
+        -webkit-font-smoothing: antialiased;
+        text-wrap: pretty;
+      }
+      h1, h2, h3, p.lead { text-wrap: balance; }
+      /* Display: Mabry Pro Light at large size for hero, body weight for h2/h3.
+         Per Chuí brand: Futura is reserved for bold uppercase only — see eyebrow. */
+      h1 { font-family: var(--sans); font-weight: 300; }
+      h2, h3 { font-family: var(--sans); font-weight: 400; }
+      .eyebrow {
+        font-family: var(--display);
+        font-size: 11px; letter-spacing: 0.18em;
+        text-transform: uppercase; color: var(--ink-soft);
+        font-weight: 700;
+      }
+
+      .page { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
+      header.top {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 24px 32px; border-bottom: 1px solid var(--line);
+      }
+      header.top a { color: inherit; text-decoration: none; font-size: 12px;
+        letter-spacing: 0.12em; text-transform: uppercase; }
+      header.top .brand {
+        font-family: var(--display); font-size: 14px; font-weight: 700;
+        letter-spacing: 0.18em; text-transform: uppercase;
+      }
+      header.top a { font-family: var(--display); font-weight: 700; }
+      main {
+        padding: 56px 32px 80px;
+        max-width: 720px; margin: 0 auto; width: 100%;
+      }
+      footer.bottom {
+        padding: 24px 32px; border-top: 1px solid var(--line);
+        text-align: center; font-size: 12px; color: var(--muted);
+      }
+
+      .hero { margin-bottom: 48px; }
+      .hero h1 {
+        font-size: clamp(36px, 6.4vw, 56px);
+        font-weight: 300;
+        line-height: 1.04; letter-spacing: -0.015em;
+        margin: 18px 0 16px;
+      }
+      /* Chuí brand: never italic. The "Chuí" word is set as a Mabry Pro Bold
+         accent inside the hero, not as a logo (would require an image). */
+      .hero h1 strong { font-weight: 700; font-style: normal; }
+      .hero p.lead {
+        font-size: 17px; line-height: 1.55;
+        max-width: 52ch; color: var(--ink-soft); margin: 0;
+      }
+
+      .panel {
+        background: var(--surface);
+        border: 1px solid var(--line-strong);
+        padding: 40px 36px;
+      }
+      .panel h2 {
+        font-size: 22px; font-weight: 500; margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      .panel .panel-sub {
+        font-size: 14px; color: var(--muted); margin: 0 0 28px;
+      }
+
+      /* Amount picker */
+      .amounts {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      @media (max-width: 480px) { .amounts { grid-template-columns: repeat(2, 1fr); } }
+      .amount-btn {
+        appearance: none;
+        background: transparent;
+        border: 1px solid var(--line-strong);
+        padding: 16px 8px;
+        font-family: var(--sans);
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--ink);
+        cursor: pointer;
+        transition: all 0.15s ease;
+      }
+      .amount-btn:hover { background: rgba(16,40,26,0.04); }
+      .amount-btn.selected { background: var(--ink); color: var(--ink-on-dark); border-color: var(--ink); }
+      .amount-custom {
+        width: 100%;
+        padding: 16px 0;
+        font-size: 18px;
+        font-family: var(--sans);
+        font-weight: 500;
+        color: var(--ink);
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid var(--line-strong);
+        outline: none;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .amount-custom:focus { border-bottom-color: var(--ink); }
+
+      form .field { margin-bottom: 22px; }
+      form .row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 520px) { form .row { grid-template-columns: 1fr; gap: 0; } }
+      label {
+        display: block; font-size: 11px;
+        letter-spacing: 0.14em; text-transform: uppercase;
+        color: var(--ink-soft); margin: 0 0 8px; font-weight: 500;
+      }
+      label .hint { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 400; }
+      input, textarea {
+        width: 100%; padding: 12px 0;
+        font-size: 16px; font-family: var(--sans);
+        color: var(--ink); background: transparent;
+        border: 0; border-bottom: 1px solid var(--line-strong);
+        outline: none; transition: border-color 0.18s ease;
+        border-radius: 0; resize: vertical;
+      }
+      input::placeholder, textarea::placeholder { color: var(--muted); }
+      input:focus, textarea:focus { border-bottom-color: var(--ink); }
+      textarea { min-height: 64px; padding: 12px 0; line-height: 1.5; }
+
+      .section-title {
+        margin: 32px 0 18px;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--ink-soft);
+        font-weight: 500;
+      }
+
+      button.primary {
+        display: inline-flex; align-items: center; justify-content: center;
+        gap: 8px; width: 100%; margin-top: 16px; padding: 18px 24px;
+        font-family: var(--sans); font-size: 12px; font-weight: 600;
+        letter-spacing: 0.18em; text-transform: uppercase;
+        background: var(--ink); color: var(--ink-on-dark);
+        border: 1px solid var(--ink); cursor: pointer;
+        transition: background 0.2s ease;
+      }
+      button.primary:hover { background: var(--ink-soft); }
+      button.primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+      .err { color: var(--error); font-size: 13px; min-height: 18px; margin-top: 12px; }
+
+      .status {
+        padding: 24px;
+        margin-bottom: 32px;
+        border: 1px solid var(--line-strong);
+        background: var(--surface);
+      }
+      .status.success { border-left: 3px solid var(--success); }
+      .status.pending { border-left: 3px solid var(--ember); }
+      .status.failure { border-left: 3px solid var(--error); }
+      .status p { margin: 0; font-size: 15px; line-height: 1.5; }
+      .status p + p { margin-top: 8px; }
+
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <a href="https://chui.com.ar" class="brand">Chuí</a>
+        <a href="/app/enroll.html?tenant=chui">Sumate al Círculo</a>
+      </header>
+
+      <main>
+        <section class="hero">
+          <p class="eyebrow">Tarjeta de regalo</p>
+          <h1>Regalá <strong>Chuí</strong>.</h1>
+          <p class="lead">Una cena al fuego, una copa, lo que se le ocurra a quien la reciba. La tarjeta llega al wallet de su celular y la usa cuando quiera.</p>
+        </section>
+
+        <div id="status" class="status" hidden></div>
+
+        <section class="panel" id="formWrap">
+          <h2>El regalo</h2>
+          <p class="panel-sub">Elegí monto y datos. Te llevamos a Mercado Pago para confirmar el pago.</p>
+
+          <form id="form" novalidate>
+            <p class="section-title">Monto</p>
+            <div class="amounts" role="group" aria-label="Monto">
+              <button type="button" class="amount-btn" data-amount="2000000">$ 20.000</button>
+              <button type="button" class="amount-btn" data-amount="5000000">$ 50.000</button>
+              <button type="button" class="amount-btn" data-amount="10000000">$ 100.000</button>
+              <button type="button" class="amount-btn" data-amount="custom">Otro</button>
+            </div>
+            <div class="field" id="customWrap" hidden>
+              <input id="customAmount" class="amount-custom" type="text" inputmode="numeric" placeholder="$ 0" autocomplete="off" />
+            </div>
+
+            <p class="section-title">De parte de</p>
+            <div class="row">
+              <div class="field">
+                <label for="senderName">Tu nombre</label>
+                <input id="senderName" required autocomplete="name" />
+              </div>
+              <div class="field">
+                <label for="senderEmail">Tu email</label>
+                <input id="senderEmail" type="email" required autocomplete="email" />
+              </div>
+            </div>
+
+            <p class="section-title">Para quién</p>
+            <div class="row">
+              <div class="field">
+                <label for="recipientName">Nombre</label>
+                <input id="recipientName" required autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="recipientEmail">Email <span class="hint">(le mandamos la tarjeta)</span></label>
+                <input id="recipientEmail" type="email" required autocomplete="off" />
+              </div>
+            </div>
+            <div class="field">
+              <label for="recipientWhatsapp">WhatsApp <span class="hint">(opcional)</span></label>
+              <input id="recipientWhatsapp" type="tel" autocomplete="off" placeholder="+54 9 11 5555 5555" />
+            </div>
+            <div class="field">
+              <label for="message">Mensaje <span class="hint">(opcional, máx 280)</span></label>
+              <textarea id="message" maxlength="280" placeholder="Lo que quieras decirle"></textarea>
+            </div>
+
+            <button type="submit" id="submit" class="primary">Pagar con Mercado Pago</button>
+            <div class="err" id="err"></div>
+          </form>
+        </section>
+      </main>
+
+      <footer class="bottom">
+        <span>Chuí · Buenos Aires · hola@chui.com.ar</span>
+      </footer>
+    </div>
+
+    <script>
+      // Render status banner if MP redirected back with a status.
+      (function renderStatus() {
+        const params = new URLSearchParams(window.location.search);
+        const s = params.get("status");
+        if (!s) return;
+        const el = document.getElementById("status");
+        el.hidden = false;
+        el.classList.add(s);
+        if (s === "success") {
+          el.innerHTML = "<p><strong>Pago confirmado.</strong></p><p>Le mandamos por email la tarjeta a quien elegiste. Si no llegó en unos minutos, escribinos a hola@chui.com.ar.</p>";
+        } else if (s === "pending") {
+          el.innerHTML = "<p><strong>Pago en proceso.</strong></p><p>En cuanto Mercado Pago confirme, le mandamos la tarjeta. Te avisamos por email.</p>";
+        } else if (s === "failure") {
+          el.innerHTML = "<p><strong>El pago no se completó.</strong></p><p>Probá de nuevo más abajo o escribinos a hola@chui.com.ar.</p>";
+        }
+      })();
+
+      // Amount picker.
+      let selectedAmount = null;
+      const amountBtns = document.querySelectorAll(".amount-btn");
+      const customWrap = document.getElementById("customWrap");
+      const customInput = document.getElementById("customAmount");
+      function setSelected(btn, amount) {
+        amountBtns.forEach((b) => b.classList.remove("selected"));
+        btn.classList.add("selected");
+        if (amount === "custom") {
+          customWrap.hidden = false;
+          selectedAmount = null;
+          customInput.focus();
+        } else {
+          customWrap.hidden = true;
+          selectedAmount = parseInt(amount, 10);
+        }
+      }
+      amountBtns.forEach((btn) => {
+        btn.addEventListener("click", () => setSelected(btn, btn.dataset.amount));
+      });
+      customInput.addEventListener("input", (e) => {
+        // Strip non-digits, format with thousand separators (ARS style).
+        const raw = e.target.value.replace(/[^\d]/g, "");
+        const cents = raw ? parseInt(raw, 10) * 100 : 0;
+        selectedAmount = cents > 0 ? cents : null;
+        e.target.value = raw ? "$ " + parseInt(raw, 10).toLocaleString("es-AR") : "";
+      });
+
+      // Submit.
+      const form = document.getElementById("form");
+      const submit = document.getElementById("submit");
+      const err = document.getElementById("err");
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        err.textContent = "";
+
+        if (!selectedAmount || selectedAmount < 500_000) {
+          err.textContent = "Elegí un monto válido (mínimo $5.000).";
+          return;
+        }
+
+        const body = {
+          tenantSlug: "chui",
+          amountCents: selectedAmount,
+          senderName: document.getElementById("senderName").value.trim(),
+          senderEmail: document.getElementById("senderEmail").value.trim(),
+          recipientName: document.getElementById("recipientName").value.trim(),
+          recipientEmail: document.getElementById("recipientEmail").value.trim(),
+          recipientWhatsapp: document.getElementById("recipientWhatsapp").value.trim() || undefined,
+          message: document.getElementById("message").value.trim() || undefined,
+        };
+
+        if (!body.senderName || !body.senderEmail || !body.recipientName || !body.recipientEmail) {
+          err.textContent = "Completá los datos requeridos.";
+          return;
+        }
+
+        submit.disabled = true;
+        submit.textContent = "Generando pago...";
+        try {
+          const res = await fetch("/v1/public/gift-cards/purchase", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            throw new Error(j.message || j.error || "No pudimos crear el pago. Intentá en unos minutos.");
+          }
+          const j = await res.json();
+          window.location.href = j.initPoint;
+        } catch (e2) {
+          err.textContent = e2.message || "Algo salió mal.";
+          submit.disabled = false;
+          submit.textContent = "Pagar con Mercado Pago";
+        }
+      });
+    </script>
+  </body>
+</html>

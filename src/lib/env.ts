@@ -34,6 +34,27 @@ const schema = z.object({
   GOOGLE_WALLET_ISSUER_ID: z.string().optional(),
   GOOGLE_WALLET_SERVICE_ACCOUNT_PATH: z.string().optional(),
   GOOGLE_WALLET_SA_JSON_B64: z.string().optional(),
+
+  // Mercado Pago — used for the public gift card purchase flow at /regalo.
+  // The access token authenticates server-side calls (Preference creation,
+  // payment fetch). The webhook secret is the "Clave secreta" set on the
+  // MP merchant dashboard under Notifications → Webhooks; we use it to
+  // verify the x-signature header on every webhook callback so attackers
+  // can't fabricate "PAID" notifications.
+  MP_ACCESS_TOKEN: z.string().optional(),
+  MP_WEBHOOK_SECRET: z.string().optional(),
+
+  // Resend — transactional email used to deliver gift card passes to the
+  // recipient and order confirmations to the buyer. Free tier covers up
+  // to 3.000 sends/month which is plenty for Chuí volumes; we bump to
+  // paid only when we expand to multi-tenant.
+  RESEND_API_KEY: z.string().optional(),
+  RESEND_FROM_EMAIL: z.string().default("Chuí <hola@chui.com.ar>"),
+
+  // Public host for absolute URLs in emails / payment redirects.
+  // Falls back to the request's Host header at runtime if not set, but
+  // setting it explicitly avoids surprises behind proxies / preview deploys.
+  PUBLIC_BASE_URL: z.string().url().default("https://card.chui.com.ar"),
 });
 
 export const env = schema.parse(process.env);
