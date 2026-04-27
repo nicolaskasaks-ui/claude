@@ -1,22 +1,14 @@
 import argon2 from "argon2";
 import { PrismaClient } from "@prisma/client";
 
-// Seed data for Chui — the launch tenant. Identity: a three-level membership
-// program centered on belonging, not discount escalation.
+// Seed data for Chui — the launch tenant. Three-level membership program.
+// Tier names use the airline-style Silver / Gold / Platinum convention so
+// the customer-facing copy stays universally readable. The richer perks
+// (lunch window, happy hour, wine upgrade, etc.) live in the JSON below.
 //
-//   Amigo               (entry, automatic on enrollment)
-//                       — first recognition, light economic perks, postre on
-//                         birthday, newsletter access.
-//
-//   Habitué             ($300.000 ARS or 1.000 pts in 12 months)
-//                       — recurring guest, expanded lunch perk, 2x1 bar
-//                         happy hour, monthly wine upgrade, event presale at
-//                         48h notice, birthday bottle.
-//
-//   Cofrade del Fuego   ($1.200.000 ARS or 4.000 pts in 12 months, or invite)
-//                       — inner circle: presale 7 days ahead with reserved
-//                         seats, postre always, Mesa del Chef once a year,
-//                         private parties, waitlist priority.
+//   Silver    (entry, automatic on enrollment)
+//   Gold      ($300.000 ARS or 1.000 pts in 12 months)
+//   Platinum  ($1.200.000 ARS or 4.000 pts in 12 months, or invite)
 //
 // `discountPct` is intentionally 0 for all tiers: the new model uses the
 // `perks` JSON which the POS evaluates contextually (lunch window, dinner
@@ -26,7 +18,7 @@ const prisma = new PrismaClient();
 
 // Perks shape — see comment in schema.prisma "Tier.perks" for all fields.
 // Numeric discounts are percent off (0..100).
-const AMIGO_PERKS = {
+const SILVER_PERKS = {
   lunch_discount: 10,
   lunch_window: "12:00-15:00",
   lunch_days: [1, 2, 3, 4, 5],
@@ -49,7 +41,7 @@ const AMIGO_PERKS = {
   newsletter: true,
 };
 
-const HABITUE_PERKS = {
+const GOLD_PERKS = {
   lunch_discount: 15,
   lunch_window: "12:00-15:00",
   lunch_days: [1, 2, 3, 4, 5],
@@ -73,7 +65,7 @@ const HABITUE_PERKS = {
   newsletter: true,
 };
 
-const COFRADE_PERKS = {
+const PLATINUM_PERKS = {
   lunch_discount: 20,
   lunch_window: "12:00-15:00",
   lunch_days: [1, 2, 3, 4, 5],
@@ -140,40 +132,40 @@ async function main() {
   // their tier relation through a rename.
   const tiers = [
     {
-      name: "Amigo",
+      name: "Silver",
       rank: 1,
       qualifyPoints: 0,
       qualifySpend: 0,
       discountPct: 0,
       pointsMultiplier: 1.0,
       color: "#10281A",
-      description: "Te recibimos como cliente recurrente. El primer reconocimiento del Círculo.",
-      stripImage: "amigo",
-      perks: AMIGO_PERKS,
+      description: "Bienvenido al programa de Chuí. Beneficios desde tu primera visita.",
+      stripImage: "silver",
+      perks: SILVER_PERKS,
     },
     {
-      name: "Habitué",
+      name: "Gold",
       rank: 2,
       qualifyPoints: 1_000,
       qualifySpend: 30_000_000, // $300.000 ARS expressed in cents
       discountPct: 0,
       pointsMultiplier: 1.25,
       color: "#10281A",
-      description: "Venís seguido, te conocemos por nombre. Acceso anticipado a eventos del Círculo.",
-      stripImage: "habitue",
-      perks: HABITUE_PERKS,
+      description: "Acceso anticipado a eventos y beneficios del programa.",
+      stripImage: "gold",
+      perks: GOLD_PERKS,
     },
     {
-      name: "Cofrade del Fuego",
+      name: "Platinum",
       rank: 3,
       qualifyPoints: 4_000,
       qualifySpend: 120_000_000, // $1.200.000 ARS expressed in cents
       discountPct: 0,
       pointsMultiplier: 1.5,
       color: "#10281A",
-      description: "Sos parte del círculo cerrado. Mesa del Chef, fiestas privadas, prioridad en lista de espera.",
-      stripImage: "cofrade",
-      perks: COFRADE_PERKS,
+      description: "Mesa del Chef, fiestas privadas, prioridad en lista de espera.",
+      stripImage: "platinum",
+      perks: PLATINUM_PERKS,
     },
   ];
   for (const t of tiers) {

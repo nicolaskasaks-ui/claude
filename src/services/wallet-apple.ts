@@ -274,7 +274,13 @@ export async function buildLoyaltyPass(args: {
     // The description is what voice-over users hear — keep it descriptive.
     description: `${args.tenant.name} · ${args.tier.name}`,
     foregroundColor: "rgb(237,235,226)",
-    backgroundColor: "rgb(16,40,26)",
+    // Sampled directly from the original strip's dominant dark pixel
+    // (`rgb(16,40,24)`). Earlier the pass declared rgb(16,40,26) which
+    // is two units brighter on the blue channel — invisible alone but
+    // produced a visible seam between the strip image and the bands of
+    // the pass that iOS fills with backgroundColor. Matching exactly to
+    // the strip eliminates the patchwork.
+    backgroundColor: "rgb(16,40,24)",
     labelColor: "rgb(237,235,226)",
     webServiceURL: `${args.publicHost}/v1/wallet/apple`,
     authenticationToken: args.card.id,
@@ -399,14 +405,17 @@ export async function buildGiftPass(args: {
   message?: string;
   publicHost: string;
 }): Promise<Buffer> {
-  const [certs, passAssets, stripAssets] = await Promise.all([
+  // Gift card pass intentionally has no strip image. Apple Wallet renders
+  // a strip in the same vertical area as primary fields, so including
+  // both produces an overlap (the balance "Saldo $50.000" stamps on top
+  // of the strip wordmark). For a gift card the prepaid balance is the
+  // hero of the card, so we keep the primary field and drop the strip.
+  const [certs, passAssets] = await Promise.all([
     loadCerts(),
     loadPassAssets(args.tenant.slug),
-    // Gift cards use a dedicated "REGALO DE CHUÍ" strip variant.
-    loadStripAssets(args.tenant.slug, "gift"),
   ]);
 
-  const assets = { ...passAssets, ...stripAssets };
+  const assets = passAssets;
 
   const pass = new PKPass(assets, certs, {
     formatVersion: 1,
@@ -416,7 +425,13 @@ export async function buildGiftPass(args: {
     organizationName: args.tenant.name,
     description: `${args.tenant.name} · Tarjeta de regalo`,
     foregroundColor: "rgb(237,235,226)",
-    backgroundColor: "rgb(16,40,26)",
+    // Sampled directly from the original strip's dominant dark pixel
+    // (`rgb(16,40,24)`). Earlier the pass declared rgb(16,40,26) which
+    // is two units brighter on the blue channel — invisible alone but
+    // produced a visible seam between the strip image and the bands of
+    // the pass that iOS fills with backgroundColor. Matching exactly to
+    // the strip eliminates the patchwork.
+    backgroundColor: "rgb(16,40,24)",
     labelColor: "rgb(237,235,226)",
   });
 

@@ -8,10 +8,10 @@ import { enqueuePassUpdate } from "./wallet-push.js";
 // message is short on purpose — iOS truncates lock-screen notifications.
 function tierWelcomeCopy(tierName: string): string {
   switch (tierName) {
-    case "Habitué":
-      return "Habitué de Chuí. Tus nuevos beneficios ya están activos.";
-    case "Cofrade del Fuego":
-      return "Sos parte del Círculo. Bienvenido a Cofrade del Fuego.";
+    case "Gold":
+      return "Subiste a Gold. Tus nuevos beneficios ya están activos.";
+    case "Platinum":
+      return "Subiste a Platinum. Acceso a Mesa del Chef y prioridad en lista.";
     default:
       return `Bienvenido a ${tierName} de Chuí.`;
   }
