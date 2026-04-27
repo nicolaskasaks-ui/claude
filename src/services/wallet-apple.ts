@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { PKPass } from "passkit-generator";
 import type { GiftCard, LoyaltyCard, Tenant, Tier } from "@prisma/client";
 import { env } from "../lib/env.js";
+import { prisma } from "../lib/prisma.js";
 import { loadSecretBuffer } from "../lib/secret-loader.js";
 
 // Generates an Apple Wallet (.pkpass) bundle for either a loyalty card or a
@@ -98,9 +99,18 @@ export async function buildLoyaltyPass(args: {
   customerName: string;
   publicHost: string;
 }): Promise<Buffer> {
-  const [certs, assets] = await Promise.all([
+  const [certs, assets, latestCampaign] = await Promise.all([
     loadCerts(),
     loadTenantAssets(args.tenant.slug),
+    // Read the most recent campaign delivery for this card so the pass can
+    // include the latest campaign message as a back field. Setting
+    // changeMessage on that field makes iOS surface the message as a
+    // lock-screen notification when the value changes.
+    prisma.campaignDelivery.findFirst({
+      where: { cardId: args.card.id, status: "SENT" },
+      orderBy: { sentAt: "desc" },
+      include: { campaign: true },
+    }),
   ]);
 
   // Layout deliberately matches the existing Chuí pass design: a strip image
@@ -134,6 +144,16 @@ export async function buildLoyaltyPass(args: {
     { key: "member_name", label: "Member Name", value: args.customerName },
     { key: "last_update", label: "Last Update", value: formatLastUpdate(new Date()) },
   );
+  // Latest campaign message goes first in the back. With a changeMessage of
+  // "%@", iOS shows the literal new message as the lock-screen notification.
+  if (latestCampaign?.campaign?.message) {
+    pass.backFields.push({
+      key: "announcement",
+      label: args.tenant.name,
+      value: latestCampaign.campaign.message,
+      changeMessage: "%@",
+    });
+  }
   pass.backFields.push(
     {
       key: "instagram",

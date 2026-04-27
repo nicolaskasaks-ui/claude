@@ -83,6 +83,14 @@ export async function sendCampaign(input: { tenantId: string; campaignId: string
 
   for (const c of audience) {
     try {
+      // Bump updatedAt so the PassKit web service will report this card as
+      // "updated" when iOS asks `?passesUpdatedSince=...`. Without this the
+      // APNs push reaches the device but iOS finds nothing new and skips
+      // the lock-screen notification.
+      await prisma.loyaltyCard.update({
+        where: { id: c.id },
+        data: { updatedAt: new Date() },
+      });
       await enqueuePassUpdate(prisma, c.id, {
         reason: "campaign",
         message: campaign.message,
