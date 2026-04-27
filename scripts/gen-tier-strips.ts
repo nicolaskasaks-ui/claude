@@ -32,7 +32,11 @@ type TierSpec = {
 };
 
 const TIERS: TierSpec[] = [
-  { slug: "amigo", wordmark: "AMIGO  ·  FRIEND  ·  AMICO DE CHUÍ", trackingEm: 0.18 },
+  // Single-language wordmark for the placeholder. The Figma export for
+  // launch can restore the trilingual greeting "AMIGO · FRIEND · AMICO
+  // DE CHUÍ" if desired, with proper kerning and either two lines or a
+  // narrower font.
+  { slug: "amigo", wordmark: "AMIGO DE CHUÍ", trackingEm: 0.32 },
   { slug: "habitue", wordmark: "HABITUÉ DE CHUÍ", trackingEm: 0.32 },
   { slug: "cofrade", wordmark: "COFRADE DEL FUEGO", trackingEm: 0.32, embellishment: "ember-line" },
 ];
@@ -42,13 +46,17 @@ const GIFT: TierSpec = { slug: "gift", wordmark: "REGALO DE CHUÍ", trackingEm: 
 function buildStripSvg(spec: TierSpec, scale: 1 | 2 | 3): string {
   const w = 375 * scale;
   const h = 144 * scale;
-  // Font size scales: at 1x ~22px for amigo (tri-lingual longer), ~30px for short single-word marks.
-  const baseFontPx = spec.wordmark.length > 24 ? 22 : 32;
-  const fontSize = baseFontPx * scale;
-  const tracking = spec.trackingEm * fontSize;
+  // Reserve ~85% of strip width for the wordmark so the text never clips.
+  // We use SVG textLength to force the rendered string to fit that width
+  // regardless of character count, which gives a consistent visual rhythm
+  // across tiers without manual font tuning per wordmark length.
+  const targetTextW = w * 0.82;
+  // Pick a font size proportional to the strip height so vertical balance
+  // holds at any DPR.
+  const fontSize = Math.round(h * 0.21);
   const ember = spec.embellishment === "ember-line";
-  const lineY = h / 2 + fontSize * 0.55;
-  const lineW = Math.min(w * 0.45, 200 * scale);
+  const lineY = h / 2 + fontSize * 0.85;
+  const lineW = Math.min(w * 0.32, 160 * scale);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
@@ -58,8 +66,9 @@ function buildStripSvg(spec: TierSpec, scale: 1 | 2 | 3): string {
         font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
         font-weight="700"
         font-size="${fontSize}"
-        letter-spacing="${tracking}">${spec.wordmark}</text>
-  ${ember ? `<rect x="${(w - lineW) / 2}" y="${lineY}" width="${lineW}" height="${Math.max(1, scale)}" fill="${EMBER}"/>` : ""}
+        textLength="${targetTextW}"
+        lengthAdjust="spacingAndGlyphs">${spec.wordmark}</text>
+  ${ember ? `<rect x="${(w - lineW) / 2}" y="${lineY}" width="${lineW}" height="${Math.max(2, scale * 1.5)}" fill="${EMBER}"/>` : ""}
 </svg>`;
 }
 
