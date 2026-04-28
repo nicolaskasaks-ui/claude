@@ -55,6 +55,11 @@ const schema = z.object({
   // Falls back to the request's Host header at runtime if not set, but
   // setting it explicitly avoids surprises behind proxies / preview deploys.
   PUBLIC_BASE_URL: z.string().url().default("https://card.chui.com.ar"),
+
+  // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>` on every
+  // scheduled call. We verify it on cron routes so they cannot be hit by
+  // anyone but Vercel's scheduler.
+  CRON_SECRET: z.string().min(16).optional(),
 });
 
 export const env = schema.parse(process.env);

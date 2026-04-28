@@ -14,5 +14,11 @@
     { "handle": "filesystem" },
     { "src": "^/app/(.*)$", "dest": "/$1", "continue": true },
     { "src": "^/(.*)$", "dest": "/api" }
+  ],
+  "crons": [
+    {
+      "path": "/v1/cron/cleanup-pending-purchases",
+      "schedule": "0 4 * * *"
+    }
   ]
 }

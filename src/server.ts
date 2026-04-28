@@ -22,6 +22,7 @@ import { campaignRoutes } from "./routes/campaigns.js";
 import { walletRoutes } from "./routes/wallet.js";
 import { publicRoutes, customerLookupRoutes } from "./routes/public.js";
 import { adminRoutes } from "./routes/admin.js";
+import { cronRoutes } from "./routes/cron.js";
 import { startWalletPushWorker } from "./workers/wallet-push.js";
 
 export function buildServer() {
@@ -64,6 +65,7 @@ export function buildServer() {
   app.register(campaignRoutes);
   app.register(walletRoutes);
   app.register(adminRoutes);
+  app.register(cronRoutes);
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
