@@ -44,12 +44,17 @@ const enrollBody = z.object({
 // Public gift card purchase — validation guards. Amounts are in minor
 // units (cents). We cap at $5M ARS = 500.000.000 cents to avoid garbage
 // inputs; legitimate purchases above that go through staff issuance.
+//
+// `singleLine` rejects CR/LF so a hostile sender cannot inject extra
+// SMTP headers (Bcc:, Reply-To:, etc.) when the value is interpolated
+// into the email subject by services/email.ts.
+const singleLine = z.string().regex(/^[^\r\n]*$/, "no se permiten saltos de línea");
 const giftPurchaseBody = z.object({
   tenantSlug: z.string().min(1),
   amountCents: z.number().int().min(500_000).max(500_000_000),
-  senderName: z.string().min(1).max(80),
+  senderName: singleLine.min(1).max(80),
   senderEmail: z.string().email(),
-  recipientName: z.string().min(1).max(80),
+  recipientName: singleLine.min(1).max(80),
   recipientEmail: z.string().email(),
   recipientWhatsapp: z.string().min(5).max(20).optional(),
   message: z.string().max(280).optional(),
