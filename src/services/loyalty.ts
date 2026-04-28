@@ -144,6 +144,18 @@ export async function redeemReward(input: {
     if (card.tier.rank < reward.minTierRank) {
       throw BadRequest("Card tier is below the reward's minimum");
     }
+    // ADHOC rewards (birthday, referral, welcome drink) are bound to a card
+    // and are one-shot. Block redemption if already claimed or past expiry,
+    // and verify the binding so a Customer can't claim someone else's gift.
+    if (reward.kind === "ADHOC") {
+      if (reward.claimedAt) throw BadRequest("Reward already claimed");
+      if (reward.expiresAt && reward.expiresAt < new Date()) {
+        throw BadRequest("Reward has expired");
+      }
+      if (reward.cardId && reward.cardId !== card.id) {
+        throw BadRequest("Reward not bound to this card");
+      }
+    }
     if (card.pointsBalance < reward.pointsCost) {
       throw BadRequest("Insufficient points balance");
     }
@@ -152,6 +164,13 @@ export async function redeemReward(input: {
       where: { id: card.id },
       data: { pointsBalance: { decrement: reward.pointsCost } },
     });
+
+    if (reward.kind === "ADHOC") {
+      await tx.reward.update({
+        where: { id: reward.id },
+        data: { claimedAt: new Date() },
+      });
+    }
 
     const txRow = await tx.transaction.create({
       data: {
