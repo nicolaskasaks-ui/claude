@@ -305,6 +305,7 @@
       .kpi {
         background: var(--surface);
         padding: 28px 24px;
+        min-width: 0;
       }
       .kpi .label {
         font-size: 11px;
@@ -315,11 +316,16 @@
       }
       .kpi .value {
         font-family: var(--serif);
-        font-size: 48px;
+        /* Scales the headline number down on narrow cards / wide values
+           (e.g. ARS in millions). Keeps the serif visual hierarchy
+           without overflowing the card on mobile or when totals grow. */
+        font-size: clamp(28px, 3.4vw, 44px);
         font-weight: 400;
         line-height: 1;
         margin: 16px 0 8px;
         letter-spacing: -0.02em;
+        overflow-wrap: anywhere;
+        text-wrap: balance;
       }
       .kpi .sub { font-size: 12px; color: var(--muted); }
 
@@ -616,6 +622,19 @@
         tiers: [],
       };
 
+      // ============ FORMATTERS ============
+      // Both money and counts render WITHOUT decimals — Nico's rule, applies
+      // everywhere (KPIs, transaction tables, tier thresholds, tooltips).
+      const formatNumber = (n) =>
+        new Intl.NumberFormat("es-AR", { maximumFractionDigits: 0 }).format(n ?? 0);
+      const formatMoneyCents = (cents) =>
+        new Intl.NumberFormat("es-AR", {
+          style: "currency",
+          currency: state.tenant?.currency || "USD",
+          maximumFractionDigits: 0,
+          minimumFractionDigits: 0,
+        }).format((cents ?? 0) / 100);
+
       // ============ API ============
       async function api(path, opts = {}) {
         const headers = { ...(opts.headers || {}) };
@@ -710,8 +729,8 @@
       async function loadDashboard() {
         try {
           const s = await api("/v1/admin/stats");
-          const fmt = new Intl.NumberFormat("es-AR");
-          const money = (cents) => new Intl.NumberFormat("es-AR", { style: "currency", currency: state.tenant?.currency || "USD" }).format(cents / 100);
+          const fmt = formatNumber;
+          const money = formatMoneyCents;
           document.getElementById("kpiGrid").innerHTML = `
             <div class="kpi"><div class="label">Puntos emitidos</div><div class="value">${fmt.format(s.totals.pointsIssued)}</div><div class="sub">${s.totals.earnTransactions} transacciones</div></div>
             <div class="kpi"><div class="label">Puntos canjeados</div><div class="value">${fmt.format(s.totals.pointsRedeemed)}</div><div class="sub">${s.totals.redeemTransactions} canjes</div></div>
@@ -783,7 +802,7 @@
               </div>
             </div>
             <h3>Últimas transacciones</h3>
-            ${txs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Puntos</th><th>Monto</th><th>Nota</th></tr></thead><tbody>${txs.map((t) => `<tr><td>${new Date(t.createdAt).toLocaleString()}</td><td><span class="badge">${t.kind}</span></td><td>${t.pointsDelta || ""}</td><td>${t.amountCents ? (t.amountCents / 100).toFixed(2) : ""}</td><td>${escapeHtml(t.note || "")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin transacciones</div>`}
+            ${txs.length ? `<table><thead><tr><th>Fecha</th><th>Tipo</th><th>Puntos</th><th>Monto</th><th>Nota</th></tr></thead><tbody>${txs.map((t) => `<tr><td>${new Date(t.createdAt).toLocaleString()}</td><td><span class="badge">${t.kind}</span></td><td>${t.pointsDelta || ""}</td><td>${t.amountCents ? formatMoneyCents(t.amountCents) : ""}</td><td>${escapeHtml(t.note || "")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty">Sin transacciones</div>`}
           `;
           document.getElementById("closeCustomer").addEventListener("click", () => (el.style.display = "none"));
           document.getElementById("editCustomerBtn").addEventListener("click", () => openCustomerForm(c));
@@ -937,7 +956,7 @@
             <tr data-rank="${t.rank}">
               <td>${t.rank}</td>
               <td class="name-strong">${escapeHtml(t.name)}</td>
-              <td>${t.qualifyPoints} pts · ${(t.qualifySpend / 100).toLocaleString()} ${state.tenant?.currency || ""}</td>
+              <td>${formatNumber(t.qualifyPoints)} pts · ${formatMoneyCents(t.qualifySpend)}</td>
               <td>${t.discountPct}%</td>
               <td>×${t.pointsMultiplier}</td>
               <td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${t.color};border:1px solid var(--line);vertical-align:middle"></span> <code>${t.color}</code></td>
