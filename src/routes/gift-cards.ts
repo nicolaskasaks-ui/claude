@@ -15,6 +15,8 @@ const redeemBody = z.object({
   amountCents: z.number().int().positive(),
   locationId: z.string().optional(),
   idempotencyKey: z.string().optional(),
+  // Required only when the gift card was issued with a PIN.
+  pin: z.string().regex(/^\d{4,8}$/).optional(),
 });
 
 export async function giftCardRoutes(app: FastifyInstance) {

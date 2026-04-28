@@ -61,47 +61,63 @@ export async function redeemGiftCard(input: {
   amountCents: number;
   locationId?: string;
   idempotencyKey?: string;
+  // Optional verification PIN. Required only if the gift card was issued
+  // with a pinHash; cards without one (today: every card, since the public
+  // purchase flow never sets a PIN) skip the check.
+  pin?: string;
 }) {
   if (input.amountCents <= 0) throw BadRequest("amountCents must be positive");
 
-  return prisma.$transaction(async (tx) => {
-    if (input.idempotencyKey) {
-      const dup = await tx.transaction.findUnique({
-        where: { idempotencyKey: input.idempotencyKey },
+  // Serializable isolation: two terminals tapping the same card must not both
+  // pass the balance check off a stale read and produce a double-spend. With
+  // Postgres SERIALIZABLE one of the conflicting transactions is aborted and
+  // Prisma surfaces the retry to the caller (the POS retries the tap).
+  return prisma.$transaction(
+    async (tx) => {
+      if (input.idempotencyKey) {
+        const dup = await tx.transaction.findUnique({
+          where: { idempotencyKey: input.idempotencyKey },
+        });
+        if (dup) return dup;
+      }
+
+      const card = await tx.giftCard.findUniqueOrThrow({ where: { id: input.giftCardId } });
+      if (card.tenantId !== input.tenantId) throw NotFound("Gift card not in tenant");
+      if (card.status !== "ACTIVE") throw BadRequest("Gift card is not active");
+      if (card.expiresAt && card.expiresAt < new Date()) {
+        await tx.giftCard.update({ where: { id: card.id }, data: { status: "EXPIRED" } });
+        throw BadRequest("Gift card has expired");
+      }
+      if (card.pinHash) {
+        if (!input.pin) throw BadRequest("PIN required");
+        const ok = await argon2.verify(card.pinHash, input.pin);
+        if (!ok) throw BadRequest("Invalid PIN");
+      }
+      if (card.balance < input.amountCents) {
+        throw BadRequest("Insufficient gift card balance");
+      }
+
+      const newBalance = card.balance - input.amountCents;
+      await tx.giftCard.update({
+        where: { id: card.id },
+        data: {
+          balance: newBalance,
+          status: newBalance === 0 ? "REDEEMED" : "ACTIVE",
+        },
       });
-      if (dup) return dup;
-    }
 
-    const card = await tx.giftCard.findUniqueOrThrow({ where: { id: input.giftCardId } });
-    if (card.tenantId !== input.tenantId) throw NotFound("Gift card not in tenant");
-    if (card.status !== "ACTIVE") throw BadRequest("Gift card is not active");
-    if (card.expiresAt && card.expiresAt < new Date()) {
-      await tx.giftCard.update({ where: { id: card.id }, data: { status: "EXPIRED" } });
-      throw BadRequest("Gift card has expired");
-    }
-    if (card.balance < input.amountCents) {
-      throw BadRequest("Insufficient gift card balance");
-    }
-
-    const newBalance = card.balance - input.amountCents;
-    await tx.giftCard.update({
-      where: { id: card.id },
-      data: {
-        balance: newBalance,
-        status: newBalance === 0 ? "REDEEMED" : "ACTIVE",
-      },
-    });
-
-    return tx.transaction.create({
-      data: {
-        tenantId: input.tenantId,
-        locationId: input.locationId,
-        customerId: card.customerId,
-        giftCardId: card.id,
-        kind: "GIFT_REDEEM",
-        amountCents: input.amountCents,
-        idempotencyKey: input.idempotencyKey,
-      },
-    });
-  });
+      return tx.transaction.create({
+        data: {
+          tenantId: input.tenantId,
+          locationId: input.locationId,
+          customerId: card.customerId,
+          giftCardId: card.id,
+          kind: "GIFT_REDEEM",
+          amountCents: input.amountCents,
+          idempotencyKey: input.idempotencyKey,
+        },
+      });
+    },
+    { isolationLevel: "Serializable" },
+  );
 }
