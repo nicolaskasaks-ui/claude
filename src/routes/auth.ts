@@ -19,7 +19,12 @@ const passwordChangeBody = z.object({
 });
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post("/v1/auth/staff/login", async (req) => {
+  // Stricter bucket on login: 10 attempts/IP/min defends against credential
+  // stuffing without locking out legitimate retypes. The global 200/min still
+  // applies on top.
+  app.post("/v1/auth/staff/login", {
+    config: { rateLimit: { max: 10, timeWindow: "1 minute" } },
+  }, async (req) => {
     const body = loginBody.parse(req.body);
     const tenant = await prisma.tenant.findUnique({ where: { slug: body.tenantSlug } });
     if (!tenant) throw Unauthorized();

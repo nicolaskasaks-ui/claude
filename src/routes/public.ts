@@ -78,7 +78,9 @@ export async function publicRoutes(app: FastifyInstance) {
     return tenant;
   });
 
-  app.post("/v1/public/enroll", async (req, reply) => {
+  app.post("/v1/public/enroll", {
+    config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
+  }, async (req, reply) => {
     const body = enrollBody.parse(req.body);
     const tenant = await prisma.tenant.findUnique({ where: { slug: body.tenantSlug } });
     if (!tenant) throw NotFound("Tenant not found");
@@ -154,7 +156,11 @@ export async function publicRoutes(app: FastifyInstance) {
   // Buyer fills out the /regalo form. We persist their intent, create an
   // MP Preference, and return the redirect URL. The actual GiftCard is
   // not minted yet — that happens when the MP webhook confirms payment.
-  app.post("/v1/public/gift-cards/purchase", async (req, reply) => {
+  // Tight bucket: each call writes a GiftCardPurchase row + hits MP. Spam
+  // here would both pollute the DB and exhaust MP rate limits.
+  app.post("/v1/public/gift-cards/purchase", {
+    config: { rateLimit: { max: 5, timeWindow: "1 minute" } },
+  }, async (req, reply) => {
     if (!isMercadoPagoConfigured()) {
       throw BadRequest("Mercado Pago no está configurado todavía");
     }
