@@ -17,7 +17,8 @@ google-wallet-sa.json
 # Build / IDE
 .vscode/
 .idea/
-.claude/
+.claude/*
+!.claude/skills/
 coverage/
 .tsbuildinfo
 .vercel
